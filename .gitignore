@@ -19,9 +19,11 @@ env/
 *.swp
 *.swo
 
-# Data and results (large files)
-data/
-results/
+# Data and results (large files) - anchored to repo root only, otherwise
+# this also matches (and silently drops from git) longaudiobench/data/,
+# the actual Python package.
+/data/
+/results/
 analysis/figures/
 *.wav
 *.mp3
