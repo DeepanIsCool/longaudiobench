@@ -153,93 +153,48 @@ class NativeLALMBaseline(BaseBaseline):
         raise NotImplementedError("Subclass must implement predict")
 
 
-class SALMONNBaseline(NativeLALMBaseline):
-    """SALMONN baseline."""
-    
-    def load_model(self):
-        # SALMONN uses a specific architecture
-        # This is a placeholder - actual implementation depends on SALMONN release
-        from transformers import AutoModel, AutoProcessor
-        
-        self.processor = AutoProcessor.from_pretrained(self.config.model_path)
-        self.model = AutoModel.from_pretrained(
-            self.config.model_path,
-            torch_dtype=torch.float16,
-            device_map="auto",
-        )
-    
-    def predict(self, audio_path: str, prompt: str) -> Dict[str, Any]:
-        audio = self._load_audio(audio_path)
-        
-        inputs = self.processor(
-            audio=audio,
-            text=prompt,
-            sampling_rate=self.config.sample_rate,
-            return_tensors="pt",
-        ).to(self.config.device)
-        
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                **self.config.generation_config,
-            )
-        
-        response = self.processor.decode(outputs[0], skip_special_tokens=True)
-        
-        return {"response": response}
-
-
 class QwenAudioBaseline(NativeLALMBaseline):
-    """Qwen-Audio baseline."""
-    
+    """Qwen2-Audio baseline (transformers>=4.45 native support)."""
+
     def load_model(self):
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self.config.model_path, 
-            trust_remote_code=True
-        )
-        self.model = AutoModelForCausalLM.from_pretrained(
+        from transformers import Qwen2AudioForConditionalGeneration, AutoProcessor
+
+        self.processor = AutoProcessor.from_pretrained(self.config.model_path)
+        self.model = Qwen2AudioForConditionalGeneration.from_pretrained(
             self.config.model_path,
             torch_dtype=torch.float16,
             device_map="auto",
-            trust_remote_code=True,
         )
-    
+
     def predict(self, audio_path: str, prompt: str) -> Dict[str, Any]:
-        # Qwen-Audio uses a specific chat template
-        from transformers import AutoProcessor
-        
-        if not hasattr(self, 'processor'):
-            self.processor = AutoProcessor.from_pretrained(
-                self.config.model_path, 
-                trust_remote_code=True
-            )
-        
-        # Process audio
-        audio = self._load_audio(audio_path)
-        
-        # Format conversation
         conversation = [
             {"role": "user", "content": [
-                {"type": "audio", "audio": audio},
-                {"type": "text", "text": prompt}
+                {"type": "audio", "audio_url": audio_path},
+                {"type": "text", "text": prompt},
             ]}
         ]
-        
-        inputs = self.processor.apply_chat_template(
-            conversation, 
-            return_tensors="pt"
-        ).to(self.config.device)
-        
+        text = self.processor.apply_chat_template(
+            conversation, add_generation_prompt=True, tokenize=False
+        )
+        audio = self._load_audio(audio_path)
+
+        inputs = self.processor(
+            text=text,
+            audios=[audio],
+            sampling_rate=self.config.sample_rate,
+            return_tensors="pt",
+            padding=True,
+        )
+        inputs.input_ids = inputs.input_ids.to(self.config.device)
+
         with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                **self.config.generation_config,
-            )
-        
-        response = self.tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
-        
+            generate_ids = self.model.generate(**inputs, **self.config.generation_config)
+        generate_ids = generate_ids[:, inputs.input_ids.size(1):]
+
+        response = self.processor.batch_decode(
+            generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )[0]
+
         return {"response": response}
 
 
@@ -281,7 +236,6 @@ def get_baseline(model_name: str, config: ModelConfig) -> BaseBaseline:
     """Factory function to get baseline by name."""
     baselines = {
         "whisper_llama3": CascadedBaseline,
-        "salmonn": SALMONNBaseline,
         "qwen_audio": QwenAudioBaseline,
         "ltu": LTUBaseline,
     }
