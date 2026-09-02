@@ -1,0 +1,56 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data and results (large files)
+data/
+results/
+analysis/figures/
+*.wav
+*.mp3
+*.flac
+
+# Logs
+*.log
+wandb/
+.tensorboard/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model checkpoints
+*.pt
+*.pth
+*.bin
+*.safetensors
