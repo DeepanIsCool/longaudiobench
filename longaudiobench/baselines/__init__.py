@@ -99,42 +99,53 @@ class BaseBaseline(ABC):
 
 
 class CascadedBaseline(BaseBaseline):
-    """Cascaded baseline: ASR (Whisper) + Text LLM."""
-    
+    """Cascaded baseline: ASR (Whisper) + Text LLM.
+
+    Uses whisper "small" rather than "large-v3": on a 5+ minute background
+    clip per instance, large-v3's transcription time dominates total
+    runtime (this was most of an observed ~22min/task on a single T4) for
+    a pilot where ASR only needs to be good enough to feed the LLM.
+    """
+
+    WHISPER_SIZE = "small"
+
     def load_model(self):
         import whisper
         from transformers import AutoModelForCausalLM, AutoTokenizer
-        
-        # Load Whisper
-        self.asr_model = whisper.load_model("large-v3", device=self.config.device)
-        
-        # Load LLM (e.g., Llama-3, Mistral)
+
+        self.asr_model = whisper.load_model(self.WHISPER_SIZE, device=self.config.device)
+
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_path)
         self.llm = AutoModelForCausalLM.from_pretrained(
             self.config.model_path,
             torch_dtype=torch.float16,
             device_map="auto",
         )
-    
+
     def predict(self, audio_path: str, prompt: str) -> Dict[str, Any]:
         # Step 1: Transcribe with Whisper
         result = self.asr_model.transcribe(audio_path, language="en")
         transcript = result["text"]
-        
-        # Step 2: Feed transcript + prompt to LLM
-        full_prompt = f"Transcript: {transcript}\n\nQuestion: {prompt}\nAnswer:"
-        
-        inputs = self.tokenizer(full_prompt, return_tensors="pt").to(self.config.device)
-        
+
+        # Step 2: Feed transcript + prompt to LLM via its chat template -
+        # an instruct model given a raw completion prompt (no special
+        # tokens marking user/assistant turns) follows instructions and
+        # format requests markedly worse than through its chat template.
+        messages = [{"role": "user", "content": f"Transcript: {transcript}\n\nQuestion: {prompt}"}]
+        input_text = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        inputs = self.tokenizer(input_text, return_tensors="pt").to(self.config.device)
+
         with torch.no_grad():
             outputs = self.llm.generate(
                 **inputs,
                 **self.config.generation_config,
                 pad_token_id=self.tokenizer.eos_token_id,
             )
-        
+
         response = self.tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
-        
+
         return {
             "transcript": transcript,
             "response": response.strip(),
@@ -235,7 +246,7 @@ class LTUBaseline(NativeLALMBaseline):
 def get_baseline(model_name: str, config: ModelConfig) -> BaseBaseline:
     """Factory function to get baseline by name."""
     baselines = {
-        "whisper_llama3": CascadedBaseline,
+        "cascaded": CascadedBaseline,
         "qwen_audio": QwenAudioBaseline,
         "ltu": LTUBaseline,
     }

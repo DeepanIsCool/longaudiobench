@@ -177,19 +177,27 @@ class NarrativeCoherenceTask(BaseTask):
                 break
             
             story = random.choice(stories)
-            story_duration = story.get("duration", self.config_obj.duration)
-            
+            # Use the configured duration, not the source clip's own (much
+            # shorter) metadata duration - the actual mixed audio this
+            # instance points to is padded/generated to config_obj.duration
+            # by create_narrative_coherence_audio, and every timestamp below
+            # must stay inside that actual audio or the ground truth becomes
+            # unanswerable no matter how good the model is.
+            story_duration = self.config_obj.duration
+
             # Select clue type
             clue_type = random.choice(self.config_obj.clue_types)
             clue_path = clues.get(clue_type)
-            
+
             if not clue_path:
                 continue
-            
-            # Define the three key timestamps
-            clue_a_time = random.uniform(60, 600)  # 1-10 minutes in
-            clue_b_time = random.uniform(clue_a_time + 600, story_duration * 0.6)  # middle
-            clue_c_time = random.uniform(story_duration * 0.8, story_duration - 60)  # near end
+
+            # Define the three key timestamps as fractions of story_duration
+            # (not fixed absolute seconds) so the ordering (early -> middle ->
+            # near end) holds regardless of the configured duration.
+            clue_a_time = random.uniform(0.05, 0.15) * story_duration
+            clue_b_time = random.uniform(0.35, 0.55) * story_duration
+            clue_c_time = random.uniform(0.80, 0.95) * story_duration
             
             # Determine ground truth verdict
             # In practice, this would be derived from the actual story content
