@@ -68,7 +68,7 @@ class SpeakerDriftTask(BaseTask):
             result["predicted_speaker"] = int(speaker_match.group(1))
         
         # Extract first appearance
-        appearance_match = re.search(r'[Ff]irst\s+appearance[:\s]+([^\.]+)', response)
+        appearance_match = re.search(r'[Ff]irst\s+appearance[:\s]+([^\.\n]+)', response)
         if appearance_match:
             appearance_text = appearance_match.group(1).strip()
             if appearance_text.lower() not in ["never", "none", "n/a"]:
@@ -93,10 +93,17 @@ class SpeakerDriftTask(BaseTask):
         true_appearance = ground_truth.get("first_appearance_timestamp")
         
         if pred_appearance and true_appearance:
-            pred_seconds = self._timestamp_to_seconds(pred_appearance)
-            true_seconds = self._timestamp_to_seconds(true_appearance)
-            metrics["appearance_error_seconds"] = abs(pred_seconds - true_seconds)
-            metrics["appearance_hit_5s"] = 1.0 if abs(pred_seconds - true_seconds) <= 5.0 else 0.0
+            try:
+                pred_seconds = self._timestamp_to_seconds(pred_appearance)
+                true_seconds = self._timestamp_to_seconds(true_appearance)
+                metrics["appearance_error_seconds"] = abs(pred_seconds - true_seconds)
+                metrics["appearance_hit_5s"] = 1.0 if abs(pred_seconds - true_seconds) <= 5.0 else 0.0
+            except (ValueError, IndexError):
+                # Free-text model output doesn't always come back as a clean
+                # MM:SS timestamp - treat anything unparseable as a miss
+                # rather than crashing the whole evaluation run.
+                metrics["appearance_error_seconds"] = float('inf')
+                metrics["appearance_hit_5s"] = 0.0
         elif pred_appearance is None and true_appearance is None:
             metrics["appearance_error_seconds"] = 0.0
             metrics["appearance_hit_5s"] = 1.0
