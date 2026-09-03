@@ -62,13 +62,16 @@ class ANIHTask(BaseTask):
         if timestamp_match:
             result["timestamp"] = timestamp_match.group(1)
         
-        # Try to extract preceding sound
-        preceding_match = re.search(r'[Pp]receding\s+sound[:\s]+([^.]+)', response)
+        # Try to extract preceding sound. Bounded to stop at a newline as
+        # well as a period - otherwise a multi-line response gets the rest
+        # of the message folded into "preceding_sound" (same class of bug
+        # as speaker_drift's first-appearance regex).
+        preceding_match = re.search(r'[Pp]receding\s+sound[:\s]+([^.\n]+)', response)
         if preceding_match:
             result["preceding_sound"] = preceding_match.group(1).strip()
         else:
             # Fallback: look for "sound:" or "was"
-            sound_match = re.search(r'(?:sound|was)[:\s]+([^.]+)', response, re.IGNORECASE)
+            sound_match = re.search(r'(?:sound|was)[:\s]+([^.\n]+)', response, re.IGNORECASE)
             if sound_match:
                 result["preceding_sound"] = sound_match.group(1).strip()
         
