@@ -196,11 +196,16 @@ class QwenAudioBaseline(NativeLALMBaseline):
             return_tensors="pt",
             padding=True,
         )
-        inputs.input_ids = inputs.input_ids.to(self.config.device)
+        # Move every tensor, not just input_ids: Qwen2-Audio-7B is ~16.8GB
+        # in fp16, bigger than a single T4, so device_map="auto" is likely
+        # to split it across both Kaggle T4s - leaving the audio feature
+        # tensors on CPU (or the wrong GPU) risks a device-mismatch error
+        # that the official single-GPU example doesn't need to worry about.
+        inputs = {k: v.to(self.config.device) if hasattr(v, "to") else v for k, v in inputs.items()}
 
         with torch.no_grad():
             generate_ids = self.model.generate(**inputs, **self.config.generation_config)
-        generate_ids = generate_ids[:, inputs.input_ids.size(1):]
+        generate_ids = generate_ids[:, inputs["input_ids"].size(1):]
 
         response = self.processor.batch_decode(
             generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
