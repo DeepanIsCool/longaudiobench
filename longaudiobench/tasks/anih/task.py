@@ -96,8 +96,11 @@ class ANIHTask(BaseTask):
             metrics["timestamp_hit_5s"] = 0.0
         
         # Preceding sound match (semantic similarity - simplified to keyword overlap)
-        pred_sound = prediction.get("preceding_sound", "").lower()
-        true_sound = ground_truth.get("preceding_sound", "").lower()
+        # `.get(key, "")` only falls back when the key is missing - but
+        # parse_model_response() explicitly stores None there when nothing
+        # matched, so `or ""` is required to actually catch that case.
+        pred_sound = (prediction.get("preceding_sound") or "").lower()
+        true_sound = (ground_truth.get("preceding_sound") or "").lower()
         
         if pred_sound and true_sound:
             pred_words = set(pred_sound.split())

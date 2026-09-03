@@ -83,8 +83,13 @@ class SpeakerDriftTask(BaseTask):
         metrics = {}
         
         # Speaker identification accuracy
+        # ground_truth["target_speaker_id"] is stored ALREADY 1-indexed
+        # (see generate_instances: "target_speaker_id": target_idx + 1) -
+        # adding another +1 here compared the model's correct 1-indexed
+        # answer against a value off by one, so this always scored 0
+        # regardless of whether the model got it right.
         pred_speaker = prediction.get("predicted_speaker")
-        true_speaker = ground_truth.get("target_speaker_id", 0) + 1  # 1-indexed for display
+        true_speaker = ground_truth.get("target_speaker_id")
         
         metrics["speaker_accuracy"] = 1.0 if pred_speaker == true_speaker else 0.0
         
