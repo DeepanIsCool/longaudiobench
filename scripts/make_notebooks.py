@@ -228,6 +228,9 @@ torch.cuda.manual_seed_all(SEED)
 # fail the commit at the end of the session.
 os.environ.setdefault("HF_HOME", "/kaggle/temp/hf")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+# Long audio prompts allocate in large irregular blocks; without this the T4
+# fragments and OOMs with a gigabyte nominally free.
+os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True")
 {token_block}
 for i in range(torch.cuda.device_count()):
     p = torch.cuda.get_device_properties(i)
@@ -505,6 +508,8 @@ KEYS = [
     "gemma3n_e4b",             # gated
 ]
 
+import gc
+
 from undertone.smoke import disk_free_gb, purge_cache, smoke_adapter
 
 # ~130 GB of checkpoints against ~60 GB of Kaggle disk: each model's weights are
@@ -524,6 +529,13 @@ for key in KEYS:
         print(report["traceback"])
     if PURGE_AFTER_EACH:
         print(f"  freed {purge_cache(adapter.model_id)} GB")
+    # Drop the last reference too: unload() nulls the model, but the adapter
+    # object itself kept enough alive that the next 7B load OOM'd with 86 MiB
+    # free on GPU 0.
+    del adapter
+    gc.collect(); torch.cuda.empty_cache()
+    for i in range(torch.cuda.device_count()):
+        torch.cuda.reset_peak_memory_stats(i)
 
 with open("/kaggle/working/smoke_report.json", "w") as fh:
     json.dump(reports, fh, indent=2, default=str)

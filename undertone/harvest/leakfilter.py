@@ -56,6 +56,8 @@ the solver, the better the result.
 class LeakReport:
     per_item: dict[str, dict[str, bool]] = field(default_factory=dict)
     rejected: set[str] = field(default_factory=set)
+    # Items whose transcript did not fit and was windowed around the needle.
+    windowed: set[str] = field(default_factory=set)
 
     def rate(self, items: Sequence[MCQItem], tier: str, category: str | None = None) -> float:
         subset = [i for i in items if category is None or i.category == category]
@@ -76,8 +78,32 @@ class LeakReport:
                 "gold_leak": round(self.rate(items, "gold", category), 3),
                 "asr_leak": round(self.rate(items, "asr", category), 3),
                 "rejected": sum(1 for i in subset if i.item_id in self.rejected),
+                "windowed": sum(1 for i in subset if i.item_id in self.windowed),
             })
         return rows
+
+
+# A 30-minute AMI transcript is ~10k tokens, and a 7B model in fp16 cannot hold
+# that activation on a 15 GB T4 alongside its own weights -- the first real run
+# OOM'd trying to allocate 958 MiB mid-forward. The transcript is therefore
+# windowed around the needle when it is too long, and every windowed item is
+# marked, because a filter that quietly saw less than the whole transcript would
+# understate leakage and overstate the audio-necessity claim.
+MAX_TRANSCRIPT_WORDS = 3000
+
+
+def window_transcript(transcript: str, item: MCQItem,
+                      max_words: int = MAX_TRANSCRIPT_WORDS) -> tuple[str, bool]:
+    """Whole transcript if it fits, else a window centred on the needle."""
+    words = transcript.split()
+    if len(words) <= max_words:
+        return transcript, False
+    # Where the needle sits, as a fraction of the recording.
+    fraction = item.needle_mid / max(1.0, float(item.duration_band))
+    centre = int(fraction * len(words))
+    half = max_words // 2
+    lo = max(0, min(centre - half, len(words) - max_words))
+    return " ".join(words[lo:lo + max_words]), True
 
 
 def render_text_prompt(item: MCQItem, transcript: str, seed: int) -> tuple[str, dict[str, str]]:
@@ -129,7 +155,10 @@ def run_filter(
             transcript = transcripts.get(item.recording_id)
             if transcript is None:
                 continue
-            prompt, letter_to_role = render_text_prompt(item, transcript, seed)
+            windowed, was_windowed = window_transcript(transcript, item)
+            if was_windowed:
+                report.windowed.add(item.item_id)
+            prompt, letter_to_role = render_text_prompt(item, windowed, seed)
             hits = 0
             for solve in solvers:
                 letter = solve(prompt)
