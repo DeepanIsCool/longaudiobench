@@ -592,10 +592,19 @@ report unverified cells.
 
 CELL_BUILD = """\
 # ~150 MB of audio per meeting. Fifteen meetings is roughly one hour of CPU.
-# English from AMI (multi-party, gold speaker turns -> the only source that
-# can express P2). Hindi and Bengali from YODAS2: long-form and CC-BY, but
-# no diarisation, so those languages contribute P1/P3/P4/C1 and no P2.
-!python /kaggle/working/longaudiobench/scripts/build_item_pack.py --out /kaggle/working/item_pack --audio-cache /kaggle/temp/source_audio --langs en hi bn --per-lang 10 --target 180
+# English from AMI (multi-party, gold speaker turns -> the only source that can
+# express P2). Hindi and Bengali come from YODAS2: long-form and CC-BY, but with
+# no diarisation, so they contribute P1/P3/P4/C1 and no P2.
+#
+# Start English-only. YODAS2 is streamed and adds a long, unpredictable download
+# to a run that has not yet proved the pipeline end to end on Kaggle; add
+# "hi bn" once an English pack exists and the leak filter has run on it.
+# Measured yield is ~3.5 usable proposals per AMI meeting, so 180 items needs
+# roughly 50 meetings.
+LANGS = "en"
+MEETINGS = 25      # ~90 proposals at measured yield
+
+!python /kaggle/working/longaudiobench/scripts/build_item_pack.py --out /kaggle/working/item_pack --audio-cache /kaggle/temp/source_audio --langs {LANGS} --target 180 --meetings $(python -c "from undertone.harvest.sources import AMI_SCENARIO_MEETINGS as m; print(' '.join(m[:{MEETINGS}]))")
 """
 
 CELL_LEAK = """\
@@ -924,7 +933,8 @@ def build_item_pack_notebook() -> dict:
     return notebook([
         md(BUILD_HEADER),
         code(CELL_PIP.format(pips="\n".join(
-            f'%pip install -q "{p}"' for p in BASE_PIP + ["datasets>=2.19.0"]))),
+            f'%pip install -q "{p}"'
+            for p in BASE_PIP + ["datasets>=2.19.0", "faster-whisper>=1.0.0"]))),
         code(CELL_ENV.format(token_block="")),
         code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
         code(CELL_BUILD),
