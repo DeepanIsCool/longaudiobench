@@ -435,26 +435,44 @@ SMOKE_RUN = """\
 # One at a time: 13 models will not co-reside on 32 GB.
 # Start with the two that bracket the roster -- Aero (~4 GB, 15 min ceiling) and
 # Qwen2-Audio (16.8 GB, 30 s ceiling) -- then widen once both are green.
+# Smallest first, so a disk or driver problem surfaces in minutes rather than
+# after a 17 GB download. Gated models last: they fail fast without a token and
+# that failure should not sit in front of twelve models that would have passed.
 KEYS = [
-    "aero_1_audio",
-    "qwen2_audio_7b",
-    # "voxtral_mini_3b", "qwen2_5_omni_3b", "moss_audio_4b_instruct",
-    # "phi4_multimodal", "audio_flamingo_next", "moss_audio_8b_instruct",
-    # "moss_audio_4b_thinking", "moss_audio_8b_thinking", "qwen2_5_omni_7b",
-    # "gemma3n_e2b", "gemma3n_e4b",     # gated: needs HF_TOKEN
+    "aero_1_audio",            # ~4 GB, brackets the light end
+    "voxtral_mini_3b",         # 9.5 GB
+    "moss_audio_4b_instruct",  # 10.4 GB, bf16 mel override
+    "moss_audio_4b_thinking",  # free-gen primary
+    "phi4_multimodal",         # 11 GB, own transformers pin
+    "qwen2_5_omni_3b",         # 11 GB, disable_talker
+    "audio_flamingo_next",     # 16.5 GB, 2xT4
+    "qwen2_audio_7b",          # 16.8 GB, 30 s cap - brackets the heavy end
+    "moss_audio_8b_instruct",  # 18 GB, 2xT4
+    "moss_audio_8b_thinking",
+    "qwen2_5_omni_7b",         # 21 GB
+    "gemma3n_e2b",             # gated
+    "gemma3n_e4b",             # gated
 ]
 
-from undertone.smoke import smoke_adapter
+from undertone.smoke import disk_free_gb, purge_cache, smoke_adapter
+
+# ~130 GB of checkpoints against ~60 GB of Kaggle disk: each model's weights are
+# deleted after it is checked, or the run dies on a download partway through
+# rather than on anything worth knowing.
+PURGE_AFTER_EACH = True
 
 reports = []
 for key in KEYS:
-    print(f"\\n{'=' * 72}\\n{key}\\n{'=' * 72}")
-    report = smoke_adapter(get_adapter(key))
+    print(f"\\n{'=' * 72}\\n{key}   (disk free: {disk_free_gb()} GB)\\n{'=' * 72}")
+    adapter = get_adapter(key)
+    report = smoke_adapter(adapter)
     reports.append(report)
     for name, result in report["checks"].items():
         print(f"  {'PASS' if result['ok'] else 'FAIL'}  {name}: {result['detail']}")
     if report.get("traceback"):
         print(report["traceback"])
+    if PURGE_AFTER_EACH:
+        print(f"  freed {purge_cache(adapter.model_id)} GB")
 
 with open("/kaggle/working/smoke_report.json", "w") as fh:
     json.dump(reports, fh, indent=2, default=str)

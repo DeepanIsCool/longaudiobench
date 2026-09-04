@@ -17,6 +17,7 @@ this project or is documented on the model card:
 
 from __future__ import annotations
 
+import os
 import time
 import traceback
 from typing import Any
@@ -79,6 +80,35 @@ def demo_audio(seconds: float = 20.0, sr: int = SAMPLE_RATE) -> np.ndarray:
     if len(audio) < want:
         audio = np.tile(audio, int(np.ceil(want / len(audio))))
     return np.asarray(audio[:want], dtype=np.float32)
+
+
+def purge_cache(model_id: str, cache_root: str | None = None) -> float:
+    """Delete one model's weights from the HF cache. Returns GB freed.
+
+    Kaggle gives ~60 GB of disk and the roster is ~130 GB of checkpoints, so a
+    sequential smoke test over all thirteen fills the disk partway through and
+    fails on a download rather than on anything interesting. Purging after each
+    model is what makes the full sweep runnable at all.
+    """
+    import shutil
+    from pathlib import Path
+
+    root = Path(cache_root or os.environ.get("HF_HOME", Path.home() / ".cache/huggingface"))
+    hub = root / "hub" if (root / "hub").is_dir() else root
+    target = hub / ("models--" + model_id.replace("/", "--"))
+    if not target.is_dir():
+        return 0.0
+    freed = sum(f.stat().st_size for f in target.rglob("*") if f.is_file()) / 1e9
+    shutil.rmtree(target, ignore_errors=True)
+    return round(freed, 2)
+
+
+def disk_free_gb(path: str = "/kaggle/temp") -> float:
+    import shutil
+    from pathlib import Path
+
+    target = path if Path(path).is_dir() else "/"
+    return round(shutil.disk_usage(target).free / 1e9, 1)
 
 
 def _peak_vram_gb() -> float | None:
