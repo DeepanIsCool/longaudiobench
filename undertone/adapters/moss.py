@@ -93,7 +93,10 @@ class _MossAudio(ModelAdapter):
         import transformers
 
         errors = []
-        for name in ("AutoModelForCausalLM", "AutoModel", "AutoModelForSeq2SeqLM"):
+        # AutoModelForAudioTextToText first: that is MOSS's own pipeline tag, and
+        # AutoModelForCausalLM does not map MossAudioConfig at all.
+        for name in ("AutoModelForAudioTextToText", "AutoModelForCausalLM",
+                     "AutoModel", "AutoModelForSeq2SeqLM"):
             cls = getattr(transformers, name, None)
             if cls is None:
                 continue

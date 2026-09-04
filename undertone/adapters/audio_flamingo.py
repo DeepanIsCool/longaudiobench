@@ -44,20 +44,33 @@ class AudioFlamingoNext(ModelAdapter):
     )
 
     def load(self) -> None:
-        import torch
-        from transformers import AutoModel, AutoProcessor
+        import transformers
+        from transformers import AutoProcessor
 
         self.processor = AutoProcessor.from_pretrained(self.model_id)
         self.tokenizer = getattr(self.processor, "tokenizer", None)
-        # `musicflamingo` is not registered in every transformers release; the
-        # first smoke run failed with "Transformers does not recognize this
-        # architecture" on 5.0.0. Remote code is the documented escape hatch.
-        try:
-            self.model = self.place(AutoModel.from_pretrained(
-                self.model_id, **self.load_kwargs()))
-        except ValueError:
-            self.model = self.place(AutoModel.from_pretrained(
-                self.model_id, trust_remote_code=True, **self.load_kwargs()))
+
+        # The repo ships config.json and weights only -- no modeling file -- so
+        # `musicflamingo` has to be registered in transformers itself. It is not
+        # in 4.57.1 (which MOSS and Aero need), which is why this model carries
+        # its own pin. AudioTextToText is its pipeline tag.
+        errors = []
+        for name in ("AutoModelForAudioTextToText", "AutoModel",
+                     "AutoModelForSeq2SeqLM"):
+            cls = getattr(transformers, name, None)
+            if cls is None:
+                continue
+            try:
+                self.model = self.place(cls.from_pretrained(
+                    self.model_id, **self.load_kwargs()))
+                self.loaded_via = name
+                return
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{name}: {type(exc).__name__}: {exc}")
+        raise RuntimeError(
+            f"no auto-class loaded {self.model_id}. `musicflamingo` needs a "
+            f"transformers release that registers it. Tried:\n  "
+            + "\n  ".join(errors))
 
     def build_inputs(self, audio: np.ndarray, prompt: str, sr: int = SAMPLE_RATE) -> dict:
         import torch

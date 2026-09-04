@@ -81,7 +81,9 @@ META = {
         n=13, params="5.57B", vram="~11 GB", gpu="1xT4",
         doc="https://huggingface.co/microsoft/Phi-4-multimodal-instruct",
         pip=["transformers==4.48.2", "accelerate>=0.34.0", "librosa>=0.10.2",
-             "soundfile>=0.12.1", "peft>=0.13.2", "backoff", "scipy"],
+             "soundfile>=0.12.1", "peft>=0.13.2", "backoff", "scipy",
+             # Its remote code rejects torchao below 0.16.
+             "torchao>=0.16.0"],
         facts=[
             "**Own transformers pin (4.48.2)** -- its remote code is version-sensitive.",
             "`_attn_implementation='eager'`; the card specifies this for pre-Ampere GPUs.",
@@ -110,6 +112,10 @@ META = {
     "aero_1_audio": dict(
         n=16, params="~1.5B + encoder", vram="~4 GB", gpu="1xT4",
         doc="https://huggingface.co/lmms-lab/Aero-1-Audio",
+        # Its remote code imports Qwen2AudioFlashAttention2, removed in later
+        # 4.5x. The card itself pins a 4.51.3 preview build.
+        pip=["transformers==4.51.3", "accelerate>=1.0.0", "librosa>=0.10.2",
+             "soundfile>=0.12.1"],
         facts=[
             "Cheapest full-ladder run in the roster: ~4 GB leaves real headroom on one T4.",
             "Card recommends `flash_attention_2`; **T4 is sm75 so we use `sdpa`**.",
@@ -159,6 +165,11 @@ META = {
     "audio_flamingo_next": dict(
         n=22, params="8.27B", vram="~16.5 GB", gpu="2xT4",
         doc="https://huggingface.co/nvidia/audio-flamingo-next-hf",
+        # The repo has config.json and weights only - no modeling file - so
+        # `musicflamingo` must be registered in transformers itself. 4.57.1 does
+        # not have it; this is the one model that needs 5.x.
+        pip=["transformers>=5.0.0", "accelerate>=1.0.0", "librosa>=0.10.2",
+             "soundfile>=0.12.1"],
         facts=[
             "Only model whose documented ceiling reaches our longest band exactly: the "
             "released processor is configured for **1800 s**, in 30 s internal windows.",
@@ -309,6 +320,26 @@ for cond in CONDITIONS:
     print(f"  {{cond}}: {{over}}/{{len(pack)}} cells exceed it -> truncated, not scored as 0")
 """
 
+CELL_SELFCHECK = """\
+# Smoke-check this model in ITS OWN environment, before spending a sweep on it.
+# The standalone 00_smoke_test loads every adapter in one env, which cannot work
+# for a roster that needs three different transformers pins - so each model
+# checks itself here, where its own pin is installed.
+from undertone.smoke import smoke_adapter
+
+report = smoke_adapter(adapter)
+for name, result in report["checks"].items():
+    print(f"  {{'PASS' if result['ok'] else 'FAIL'}}  {{name}}: {{result['detail']}}")
+if report.get("traceback"):
+    print(report["traceback"])
+
+assert report.get("ok"), (
+    f"{{ADAPTER_KEY}} failed: {{report['failures']}}. Fix the adapter before "
+    "spending quota on a sweep - a broken adapter produces a table of zeros "
+    "that looks like a finding.")
+print(f"\\nOK - peak {{report.get('peak_vram_gb')}} GB in {{report.get('seconds')}}s")
+"""
+
 CELL_RUN = """\
 OUT = f"/kaggle/working/results/{{ADAPTER_KEY}}.jsonl"
 
@@ -416,6 +447,7 @@ are excluded from the accuracy table. They are never scored as zero.
         code(CELL_ENV.format(token_block=token_block)),
         code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
         code(CELL_ADAPTER.format(key=key)),
+        code(CELL_SELFCHECK),
         code(CELL_PACK.format(pack=ITEM_PACK_DATASET)),
         code(CELL_RUN),
         code(CELL_SUMMARY),
@@ -450,18 +482,25 @@ SMOKE_RUN = """\
 # Smallest first, so a disk or driver problem surfaces in minutes rather than
 # after a 17 GB download. Gated models last: they fail fast without a token and
 # that failure should not sit in front of twelve models that would have passed.
+# Only the models the SHARED pin (transformers 4.57.1) can load. Three models
+# need a different one and are checked inside their own notebooks instead:
+#
+#   aero_1_audio         4.51.3 - remote code imports Qwen2AudioFlashAttention2
+#   phi4_multimodal      4.48.2 - version-sensitive remote code + torchao
+#   audio_flamingo_next  5.x    - ships no modeling file, needs `musicflamingo`
+#                                 registered in transformers itself
+#
+# Every model notebook now smoke-checks itself before its sweep, so nothing goes
+# unchecked; this notebook is the fast pre-flight for the compatible majority.
 KEYS = [
-    "aero_1_audio",            # ~4 GB, brackets the light end
     "voxtral_mini_3b",         # 9.5 GB
     "moss_audio_4b_instruct",  # 10.4 GB, bf16 mel override
     "moss_audio_4b_thinking",  # free-gen primary
-    "phi4_multimodal",         # 11 GB, own transformers pin
-    "qwen2_5_omni_3b",         # 11 GB, disable_talker
-    "audio_flamingo_next",     # 16.5 GB, 2xT4
-    "qwen2_audio_7b",          # 16.8 GB, 30 s cap - brackets the heavy end
+    "qwen2_5_omni_3b",         # 11 GB, Thinker only
+    "qwen2_audio_7b",          # 16.8 GB, 30 s cap
     "moss_audio_8b_instruct",  # 18 GB, 2xT4
     "moss_audio_8b_thinking",
-    "qwen2_5_omni_7b",         # 21 GB
+    "qwen2_5_omni_7b",         # 21 GB, memory-balanced
     "gemma3n_e2b",             # gated
     "gemma3n_e4b",             # gated
 ]

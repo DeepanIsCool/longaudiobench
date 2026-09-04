@@ -105,6 +105,29 @@ def test_every_notebook_records_its_hardware_signature(notebooks):
         assert "signature" in "\n".join(code_cells(nb)), name
 
 
+def test_models_needing_a_different_pin_get_one(notebooks):
+    """No single transformers release loads the whole roster."""
+    expected = {
+        "phi4_multimodal": "transformers==4.48.2",      # version-sensitive remote code
+        "aero_1_audio": "transformers==4.51.3",         # imports Qwen2AudioFlashAttention2
+        "audio_flamingo_next": "transformers>=5.0.0",   # musicflamingo not in 4.x
+    }
+    for key, pin in expected.items():
+        name = next(n for n in notebooks if n.endswith(f"{key}.ipynb"))
+        assert pin in "\n".join(code_cells(notebooks[name])), key
+
+
+def test_every_model_notebook_smoke_checks_itself(notebooks):
+    """The shared smoke test cannot cover a roster needing three pins."""
+    from undertone import adapters
+
+    for key in adapters.list_adapters():
+        name = next(n for n in notebooks if n.endswith(f"{key}.ipynb"))
+        joined = "\n".join(code_cells(notebooks[name]))
+        assert "smoke_adapter" in joined, key
+        assert "assert report.get(\"ok\")" in joined, key
+
+
 def test_phi4_gets_its_own_transformers_pin(notebooks):
     """Its remote code is version-sensitive; sharing the roster pin breaks it."""
     name = next(n for n in notebooks if n.endswith("phi4_multimodal.ipynb"))

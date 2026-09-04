@@ -138,7 +138,22 @@ class _Qwen25Omni(ModelAdapter):
         return row
 
     def generate_kwargs(self) -> dict:
+        # The Thinker has no speech head, so `return_audio` is an unknown kwarg
+        # to it and generate() rejects it outright.
+        if getattr(self, "loaded_via", "") == "Thinker":
+            return {}
         return {"return_audio": False, "use_audio_in_video": False}
+
+    def load_kwargs(self, **extra) -> dict:
+        kwargs = super().load_kwargs(**extra)
+        # 10.7B across 2x15.6GB is tight enough that accelerate's default split
+        # leaves GPU 1 with no room for activations -- the 7B OOM'd at inference
+        # with 10 MiB free after loading cleanly. Cap both so the KV cache fits.
+        if kwargs.get("device_map") == "auto" and self.needs_balancing:
+            kwargs["max_memory"] = {0: "12GiB", 1: "12GiB", "cpu": "24GiB"}
+        return kwargs
+
+    needs_balancing = False
 
 
 @register
@@ -154,4 +169,6 @@ class Qwen25Omni7B(_Qwen25Omni):
     key = "qwen2_5_omni_7b"
     model_id = "Qwen/Qwen2.5-Omni-7B"
     max_audio_s = 1260.0
-    notes = "Talker disabled; ~14GB fp16 after that, still sharded over 2xT4."
+    needs_balancing = True
+    notes = ("Thinker only; ~14GB fp16. max_memory caps both T4s so the KV cache "
+             "has room -- the default split OOM'd at inference with 10 MiB free.")
