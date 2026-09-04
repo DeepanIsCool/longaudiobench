@@ -28,7 +28,6 @@ import numpy as np
 from .base import (
     SAMPLE_RATE,
     ModelAdapter,
-    call_processor,
     move_to_device,
     primary_device,
     register,
@@ -68,50 +67,66 @@ class _MossAudio(ModelAdapter):
     audio_float_keys = ("audio_data",)
 
     def load(self) -> None:
-        import torch
-        from transformers import AutoProcessor
+        """MOSS is not a plain transformers load.
 
-        self.processor = AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True)
+        The Hub repo ships config, processor and weights but **no modeling
+        file**, and `moss_audio` is registered in no transformers release --
+        4.57.1 and 5.0.0 both reject MossAudioConfig. The model class lives in
+        OpenMOSS's own package:
+
+            pip install git+https://github.com/OpenMOSS/MOSS-Audio.git
+
+        installed *without* its ``torch-runtime`` extra, which would pin
+        torch==2.9.1+cu128 over Kaggle's existing build. Their pyproject already
+        pins transformers==4.57.1, which is the roster's shared pin.
+        """
+        from ..env import torch_dtype
+
+        MossAudioModel, MossAudioProcessor = self._import_moss()
+
+        self.processor = MossAudioProcessor.from_pretrained(
+            self.model_id, trust_remote_code=True, enable_time_marker=True)
+        # processor_config.json declares bfloat16; sm75 has no bf16 compute.
+        if hasattr(self.processor, "config"):
+            self.processor.config.mel_dtype = torch_dtype(self.hardware)
         self.tokenizer = getattr(self.processor, "tokenizer", None) or \
             getattr(self.processor, "_base_tokenizer", None)
 
-        from ..env import torch_dtype
-
-        # (1) bf16 mel -> the machine's real dtype, before any __call__.
-        if hasattr(self.processor, "config"):
-            self.processor.config.mel_dtype = torch_dtype(self.hardware)
-        self.model = self._load_model()
+        self.model = self.place(MossAudioModel.from_pretrained(
+            self.model_id, trust_remote_code=True, **self.load_kwargs()))
         self.model.eval()
+        self.loaded_via = "OpenMOSS/MOSS-Audio"
 
-    def _load_model(self):
-        """config.json maps AutoConfig and AutoProcessor but not AutoModel.
+    @staticmethod
+    def _import_moss():
+        """Import from the installed package, else from a shallow clone."""
+        try:
+            from src.modeling_moss_audio import MossAudioModel
+            from src.processing_moss_audio import MossAudioProcessor
 
-        Which auto-class carries ``MossAudioModel`` depends on the transformers
-        release, so try the plausible ones and record which one worked instead
-        of pinning a guess.
-        """
-        import transformers
+            return MossAudioModel, MossAudioProcessor
+        except ImportError:
+            pass
 
-        errors = []
-        # AutoModelForAudioTextToText first: that is MOSS's own pipeline tag, and
-        # AutoModelForCausalLM does not map MossAudioConfig at all.
-        for name in ("AutoModelForAudioTextToText", "AutoModelForCausalLM",
-                     "AutoModel", "AutoModelForSeq2SeqLM"):
-            cls = getattr(transformers, name, None)
-            if cls is None:
-                continue
-            try:
-                model = self.place(cls.from_pretrained(
-                    self.model_id, trust_remote_code=True, **self.load_kwargs()))
-                self.loaded_via = name
-                return model
-            except Exception as exc:  # noqa: BLE001
-                errors.append(f"{name}: {type(exc).__name__}: {exc}")
-        raise RuntimeError(
-            f"no auto-class loaded {self.model_id}. Tried:\n  " + "\n  ".join(errors)
-        )
+        import subprocess
+        import sys
+        from pathlib import Path
 
-    def build_inputs(self, audio: np.ndarray, prompt: str, sr: int = SAMPLE_RATE) -> dict:
+        # The package installs its modules under the top-level name `src`, so a
+        # clone on sys.path is an equivalent fallback when pip is unavailable.
+        target = Path("/kaggle/temp/MOSS-Audio")
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["git", "clone", "--depth", "1",
+                            "https://github.com/OpenMOSS/MOSS-Audio.git", str(target)],
+                           check=True)
+        sys.path.insert(0, str(target))
+        from src.modeling_moss_audio import MossAudioModel
+        from src.processing_moss_audio import MossAudioProcessor
+
+        return MossAudioModel, MossAudioProcessor
+
+    def build_inputs(self, audio, prompt: str, sr: int = SAMPLE_RATE) -> dict:
         import torch
 
         seconds = len(audio) / sr
@@ -119,14 +134,16 @@ class _MossAudio(ModelAdapter):
         if needed > CONTEXT_LIMIT - PROMPT_HEADROOM:
             raise ValueError(
                 f"{self.key}: {seconds:.0f}s of audio needs ~{needed} tokens, over the "
-                f"{CONTEXT_LIMIT} context. Cap is ~{max_seconds():.0f}s."
-            )
-        # The processor wraps bare text in its own im_start template when no
-        # <|audio_bos|> span is present, which is the documented path.
-        inputs = call_processor(self.processor, prompt, audio, sr)
-        return move_to_device(
-            dict(inputs), primary_device(self.model), self.cast_dtype(), self.audio_float_keys
-        )
+                f"{CONTEXT_LIMIT} context. Cap is ~{max_seconds():.0f}s.")
+
+        inputs = self.processor(text=prompt, audios=[audio], return_tensors="pt")
+        inputs = dict(inputs)
+        inputs = move_to_device(inputs, primary_device(self.model), None, ())
+        if inputs.get("audio_data") is not None:
+            inputs["audio_data"] = inputs["audio_data"].to(self.model.dtype)
+        # Required by MossAudioModel.forward and not produced by the processor.
+        inputs["audio_input_mask"] = inputs["input_ids"] == self.processor.audio_token_id
+        return inputs
 
     def estimated_audio_tokens(self, seconds: float) -> int:
         return estimate_tokens(seconds)
@@ -137,7 +154,9 @@ class MossAudio4BInstruct(_MossAudio):
     key = "moss_audio_4b_instruct"
     model_id = "OpenMOSS-Team/MOSS-Audio-4B-Instruct"
     primary = "logits"
-    notes = "mel_dtype forced to fp16 (sm75). ~5.2B, 10.4GB, one T4."
+    notes = ("Needs OpenMOSS's own package - the Hub repo has no modeling file "
+             "and no transformers release registers moss_audio. "
+             "mel_dtype forced to fp16 (sm75). ~5.2B, 10.4GB, one T4.")
 
 
 @register

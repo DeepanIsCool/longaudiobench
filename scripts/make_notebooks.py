@@ -134,7 +134,13 @@ META = {
             "Chat template takes audio by path, so each window is written to a temp wav.",
         ]),
     "moss_audio_4b_instruct": dict(
-        n=18, params="~5.2B", vram="10.4 GB", gpu="1xT4",
+        n=18,
+        # MOSS ships no modeling file on the Hub; the model class is in their
+        # package. Installed without its torch-runtime extra, which would pin
+        # torch==2.9.1+cu128 over the image's build.
+        pip=["transformers==4.57.1", "accelerate>=1.0.0", "librosa>=0.10.2",
+             "soundfile>=0.12.1", "tiktoken>=0.12.0", "einops>=0.8.0",
+             "git+https://github.com/OpenMOSS/MOSS-Audio.git"], params="~5.2B", vram="10.4 GB", gpu="1xT4",
         doc="https://huggingface.co/OpenMOSS-Team/MOSS-Audio-4B-Instruct",
         facts=[
             "`processor_config.json` sets `mel_dtype: bfloat16`; **T4 has no bf16 compute**, "
@@ -146,7 +152,13 @@ META = {
             "Declared ceiling is config-derived. Run `measure_ceiling` to get a real number.",
         ]),
     "moss_audio_4b_thinking": dict(
-        n=19, params="~5.2B", vram="10.4 GB", gpu="1xT4",
+        n=19,
+        # MOSS ships no modeling file on the Hub; the model class is in their
+        # package. Installed without its torch-runtime extra, which would pin
+        # torch==2.9.1+cu128 over the image's build.
+        pip=["transformers==4.57.1", "accelerate>=1.0.0", "librosa>=0.10.2",
+             "soundfile>=0.12.1", "tiktoken>=0.12.0", "einops>=0.8.0",
+             "git+https://github.com/OpenMOSS/MOSS-Audio.git"], params="~5.2B", vram="10.4 GB", gpu="1xT4",
         doc="https://huggingface.co/OpenMOSS-Team/MOSS-Audio-4B-Thinking",
         facts=[
             "Trained to reason first, so the **first generated token is a thought, not an "
@@ -155,11 +167,23 @@ META = {
             "Same fp16 mel override and context arithmetic as the Instruct variant.",
         ]),
     "moss_audio_8b_instruct": dict(
-        n=20, params="9.05B", vram="~18 GB", gpu="2xT4",
+        n=20,
+        # MOSS ships no modeling file on the Hub; the model class is in their
+        # package. Installed without its torch-runtime extra, which would pin
+        # torch==2.9.1+cu128 over the image's build.
+        pip=["transformers==4.57.1", "accelerate>=1.0.0", "librosa>=0.10.2",
+             "soundfile>=0.12.1", "tiktoken>=0.12.0", "einops>=0.8.0",
+             "git+https://github.com/OpenMOSS/MOSS-Audio.git"], params="9.05B", vram="~18 GB", gpu="2xT4",
         doc="https://huggingface.co/OpenMOSS-Team/MOSS-Audio-8B-Instruct",
         facts=["Same plumbing as the 4B Instruct; 9.05B shards over both T4s."]),
     "moss_audio_8b_thinking": dict(
-        n=21, params="9.05B", vram="~18 GB", gpu="2xT4",
+        n=21,
+        # MOSS ships no modeling file on the Hub; the model class is in their
+        # package. Installed without its torch-runtime extra, which would pin
+        # torch==2.9.1+cu128 over the image's build.
+        pip=["transformers==4.57.1", "accelerate>=1.0.0", "librosa>=0.10.2",
+             "soundfile>=0.12.1", "tiktoken>=0.12.0", "einops>=0.8.0",
+             "git+https://github.com/OpenMOSS/MOSS-Audio.git"], params="9.05B", vram="~18 GB", gpu="2xT4",
         doc="https://huggingface.co/OpenMOSS-Team/MOSS-Audio-8B-Thinking",
         facts=["Thinking variant on 2xT4: free-gen primary, logits diagnostic."]),
     "audio_flamingo_next": dict(
