@@ -28,14 +28,26 @@ REPO_URL = "https://github.com/DeepanIsCool/longaudiobench.git"
 REPO_REF = "undertone"     # pin to a commit sha before the run that goes in the paper
 ITEM_PACK_DATASET = "undertone-item-pack"
 
-# transformers floor for the roster.  Freeze to the exact resolved version
-# (printed by every notebook's environment cell) before the paper run.
-TRANSFORMERS = "transformers>=4.57.1"
+# HARD pin, not a floor. ">=4.57.1" resolved to transformers 5.0.0 on Kaggle and
+# broke eight of thirteen adapters at once: Aero's remote code imports
+# Qwen2AudioFlashAttention2 (gone in 5.x), MOSS's MossAudioConfig is
+# unrecognised, Qwen2.5-Omni's TalkerConfig lost pad_token_id, and AF-Next's
+# `musicflamingo` architecture is not registered. 4.57.1 is what MOSS's own
+# config.json declares.
+TRANSFORMERS = "transformers==4.57.1"
 BASE_PIP = [
     TRANSFORMERS,
     "accelerate>=1.0.0",
     "librosa>=0.10.2",
     "soundfile>=0.12.1",
+]
+
+# The smoke test loads every adapter in one environment, so it needs the union
+# of their extras. Without this a missing package reads as a broken adapter --
+# Phi-4 failed its first smoke run purely for want of `backoff`.
+SMOKE_PIP = BASE_PIP + [
+    "backoff", "peft>=0.13.2", "scipy",       # Phi-4 remote code
+    "mistral-common[audio]>=1.8.1",           # Voxtral tokenizer
 ]
 
 # Human-facing facts for the header cell.  Everything mechanical (ceiling,
@@ -524,7 +536,7 @@ def build_smoke_notebook() -> dict:
     # setup because two of thirteen are gated reports nothing at all.
     return notebook([
         md(SMOKE_HEADER),
-        code(CELL_PIP.format(pips="\n".join(f'%pip install -q "{p}"' for p in BASE_PIP))),
+        code(CELL_PIP.format(pips="\n".join(f'%pip install -q "{p}"' for p in SMOKE_PIP))),
         code(CELL_ENV.format(token_block="")),
         code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
         code("from undertone.adapters.base import get_adapter\n"
@@ -602,9 +614,16 @@ CELL_BUILD = """\
 # Measured yield is ~3.5 usable proposals per AMI meeting, so 180 items needs
 # roughly 50 meetings.
 LANGS = "en"
-MEETINGS = 25      # ~90 proposals at measured yield
+N_MEETINGS = 25      # ~90 proposals at the measured 3.5/meeting
 
-!python /kaggle/working/longaudiobench/scripts/build_item_pack.py --out /kaggle/working/item_pack --audio-cache /kaggle/temp/source_audio --langs {LANGS} --target 180 --meetings $(python -c "from undertone.harvest.sources import AMI_SCENARIO_MEETINGS as m; print(' '.join(m[:{MEETINGS}]))")
+# Build the list here, not in a $(...) subshell: the subshell does not inherit
+# this notebook's sys.path, so the import fails silently, --meetings gets an
+# empty list, and the harvest runs over zero meetings.
+from undertone.harvest.sources import AMI_SCENARIO_MEETINGS
+MEETINGS = " ".join(AMI_SCENARIO_MEETINGS[:N_MEETINGS])
+print(f"harvesting {N_MEETINGS} meetings: {MEETINGS[:80]}...")
+
+!python /kaggle/working/longaudiobench/scripts/build_item_pack.py --out /kaggle/working/item_pack --audio-cache /kaggle/temp/source_audio --langs {LANGS} --target 180 --meetings {MEETINGS}
 """
 
 CELL_LEAK = """\

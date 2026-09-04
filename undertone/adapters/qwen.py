@@ -77,14 +77,32 @@ class _Qwen25Omni(ModelAdapter):
     audio_float_keys = ("input_features", "feature_attention_mask")
 
     def load(self) -> None:
-        import torch
-        from transformers import Qwen2_5OmniForConditionalGeneration, Qwen2_5OmniProcessor
+        import transformers
+        from transformers import Qwen2_5OmniProcessor
 
         self.processor = Qwen2_5OmniProcessor.from_pretrained(self.model_id)
         self.tokenizer = self.processor.tokenizer
+
+        # Prefer the Thinker on its own. We want text, never speech, so loading
+        # the full Thinker+Talker only to disable the Talker wastes ~2 GB and
+        # walks into a config incompatibility ("Qwen2_5OmniTalkerConfig has no
+        # attribute pad_token_id") that killed both Omni adapters on the first
+        # smoke run.
+        thinker_cls = getattr(transformers, "Qwen2_5OmniThinkerForConditionalGeneration", None)
+        if thinker_cls is not None:
+            try:
+                self.model = self.place(thinker_cls.from_pretrained(
+                    self.model_id, attn_implementation="sdpa", **self.load_kwargs()))
+                self.loaded_via = "Thinker"
+                return
+            except Exception:  # noqa: BLE001 - fall back to the full model
+                pass
+
+        from transformers import Qwen2_5OmniForConditionalGeneration
+
         self.model = self.place(Qwen2_5OmniForConditionalGeneration.from_pretrained(
             self.model_id, attn_implementation="sdpa", **self.load_kwargs()))
-        # No speech output is wanted, and the Talker is ~2GB of VRAM we need.
+        self.loaded_via = "full"
         if hasattr(self.model, "disable_talker"):
             self.model.disable_talker()
 

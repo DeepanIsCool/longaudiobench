@@ -49,8 +49,15 @@ class AudioFlamingoNext(ModelAdapter):
 
         self.processor = AutoProcessor.from_pretrained(self.model_id)
         self.tokenizer = getattr(self.processor, "tokenizer", None)
-        self.model = self.place(AutoModel.from_pretrained(
-            self.model_id, **self.load_kwargs()))
+        # `musicflamingo` is not registered in every transformers release; the
+        # first smoke run failed with "Transformers does not recognize this
+        # architecture" on 5.0.0. Remote code is the documented escape hatch.
+        try:
+            self.model = self.place(AutoModel.from_pretrained(
+                self.model_id, **self.load_kwargs()))
+        except ValueError:
+            self.model = self.place(AutoModel.from_pretrained(
+                self.model_id, trust_remote_code=True, **self.load_kwargs()))
 
     def build_inputs(self, audio: np.ndarray, prompt: str, sr: int = SAMPLE_RATE) -> dict:
         import torch

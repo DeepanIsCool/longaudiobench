@@ -118,6 +118,11 @@ def collect_recordings(langs: list[str], meetings: list[str], per_lang: int,
     out: list[tuple[sources.Recording, str]] = []
 
     if "en" in langs:
+        if not meetings:
+            raise SystemExit(
+                "--langs includes 'en' but --meetings is empty. Silently "
+                "harvesting zero meetings is how a shell-quoting mistake becomes "
+                "an empty item pack three cells later.")
         print(f"fetching AMI annotations (~30 MB) for {len(meetings)} meetings...")
         ann_dir = sources.download_ami_annotations(str(audio_cache / "ami_annotations"))
         tables = sources.ami_segments_from_annotations(meetings, ann_dir)
