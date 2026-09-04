@@ -359,7 +359,7 @@ print(f"\\nOK - peak {report.get('peak_vram_gb')} GB in {report.get('seconds')}s
 """
 
 CELL_RUN = """\
-OUT = f"/kaggle/working/results/{{ADAPTER_KEY}}.jsonl"
+OUT = f"/kaggle/working/results/{ADAPTER_KEY}.jsonl"
 
 # Resumable: a killed 12 h session picks up where it stopped. Rerun this cell
 # after a restart rather than starting the sweep over.
@@ -379,34 +379,34 @@ print("done ->", OUT)
 CELL_SUMMARY = """\
 rows = runner.load_rows(OUT)
 usable = runner.scorable(rows)          # drops errors and truncated cells
-print(f"{{len(rows)}} rows, {{len(usable)}} scorable, "
-      f"{{sum(1 for r in rows if r.get('truncated'))}} truncated, "
-      f"{{sum(1 for r in rows if r.get('error'))}} errored")
+print(f"{len(rows)} rows, {len(usable)} scorable, "
+      f"{sum(1 for r in rows if r.get('truncated'))} truncated, "
+      f"{sum(1 for r in rows if r.get('error'))} errored")
 
-by_cond = {{c: [r for r in usable if r["condition"] == c] for c in CONDITIONS}}
+by_cond = {c: [r for r in usable if r["condition"] == c] for c in CONDITIONS}
 costs = scoring.ladder_costs(by_cond)
-print("\\nladder:", json.dumps({{k: round(v, 3) for k, v in costs.items()}}, indent=2))
+print("\\nladder:", json.dumps({k: round(v, 3) for k, v in costs.items()}, indent=2))
 
 print("\\nper category (L3), salience trap is the headline diagnostic:")
 for cat in ["P1", "P2", "P3", "P4", "C1"]:
     subset = [r for r in by_cond["L3"] if r["category"] == cat]
     if subset:
         s = scoring.summarize(subset)
-        print(f"  {{cat}}  n={{s['n']}}  acc={{s['accuracy']:.3f}}  "
-              f"salience={{s['salience_trap_rate']:.3f}}  "
-              f"recency={{s['recency_trap_rate']:.3f}}")
+        print(f"  {cat}  n={s['n']}  acc={s['accuracy']:.3f}  "
+              f"salience={s['salience_trap_rate']:.3f}  "
+              f"recency={s['recency_trap_rate']:.3f}")
 
 degenerate = [r for r in usable if r.get("logit_degenerate")]
 if degenerate:
-    print(f"\\nWARNING: {{len(degenerate)}} cells had all four letter logits equal. "
+    print(f"\\nWARNING: {len(degenerate)} cells had all four letter logits equal. "
           "That is not a 25% baseline, it is a broken measurement -- check the adapter.")
 
-with open(f"/kaggle/working/results/{{ADAPTER_KEY}}_summary.json", "w") as fh:
-    json.dump({{"model": adapter.describe(), "ladder": costs,
-               "overall": scoring.summarize(usable)}}, fh, indent=2, default=str)
+with open(f"/kaggle/working/results/{ADAPTER_KEY}_summary.json", "w") as fh:
+    json.dump({"model": adapter.describe(), "ladder": costs,
+               "overall": scoring.summarize(usable)}, fh, indent=2, default=str)
 
 import subprocess
-subprocess.run(["tar", "-czf", f"/kaggle/working/{{ADAPTER_KEY}}_results.tar.gz",
+subprocess.run(["tar", "-czf", f"/kaggle/working/{ADAPTER_KEY}_results.tar.gz",
                 "-C", "/kaggle/working", "results"], check=True)
 print("packaged")
 """
