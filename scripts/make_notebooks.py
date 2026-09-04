@@ -308,10 +308,12 @@ CELL_PACK = """\
 # twice against a dataset that was correctly attached the whole time.
 import glob
 
-candidates = sorted(glob.glob("/kaggle/input/*/item_pack.jsonl")
-                    + glob.glob("/kaggle/working/item_pack/item_pack.jsonl"))
+# Recursive: Kaggle nests attached datasets under /kaggle/input/datasets/<owner>/
+# <slug>/, not directly under /kaggle/input/<slug>. A one-level glob missed it.
+candidates = sorted(glob.glob("/kaggle/input/**/item_pack.jsonl", recursive=True)
+                    + glob.glob("/kaggle/working/**/item_pack.jsonl", recursive=True))
 if not candidates:
-    listing = sorted(glob.glob("/kaggle/input/*")) or ["(nothing mounted)"]
+    listing = sorted(glob.glob("/kaggle/input/**/*", recursive=True))[:40] or ["(nothing mounted)"]
     raise FileNotFoundError(
         "no item_pack.jsonl under /kaggle/input. Attach the '{pack}' dataset "
         f"(Add Input -> Datasets), or run 01_build_item_pack first. "
