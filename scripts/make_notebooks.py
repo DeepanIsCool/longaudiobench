@@ -332,15 +332,15 @@ from undertone.smoke import smoke_adapter
 
 report = smoke_adapter(adapter)
 for name, result in report["checks"].items():
-    print(f"  {{'PASS' if result['ok'] else 'FAIL'}}  {{name}}: {{result['detail']}}")
+    print(f"  {'PASS' if result['ok'] else 'FAIL'}  {name}: {result['detail']}")
 if report.get("traceback"):
     print(report["traceback"])
 
 assert report.get("ok"), (
-    f"{{ADAPTER_KEY}} failed: {{report['failures']}}. Fix the adapter before "
+    f"{ADAPTER_KEY} failed: {report['failures']}. Fix the adapter before "
     "spending quota on a sweep - a broken adapter produces a table of zeros "
     "that looks like a finding.")
-print(f"\\nOK - peak {{report.get('peak_vram_gb')}} GB in {{report.get('seconds')}}s")
+print(f"\\nOK - peak {report.get('peak_vram_gb')} GB in {report.get('seconds')}s")
 """
 
 CELL_RUN = """\
