@@ -479,14 +479,30 @@ with open("/kaggle/working/smoke_report.json", "w") as fh:
 """
 
 SMOKE_VERDICT = """\
-bad = [r for r in reports if not r.get("ok")]
+# A gated model with no token is a missing licence, not a broken adapter. They
+# are separated so a Gemma-3n licence you have not accepted yet cannot mask a
+# real failure in one of the other eleven.
+def is_gating(report):
+    detail = str(report["checks"].get("loads", {}).get("detail", ""))
+    return "gated" in detail.lower() or "401" in detail or "403" in detail
+
+broken = [r for r in reports if not r.get("ok") and not is_gating(r)]
+gated = [r for r in reports if not r.get("ok") and is_gating(r)]
+
 for r in reports:
-    print(f"{'ok  ' if r.get('ok') else 'FAIL'} {r['key']:26s} "
-          f"{r.get('peak_vram_gb', '?')} GB  {r.get('seconds', '?')}s  "
+    mark = "ok  " if r.get("ok") else ("GATE" if is_gating(r) else "FAIL")
+    print(f"{mark} {r['key']:26s} {r.get('peak_vram_gb', '?')} GB  "
+          f"{r.get('seconds', '?')}s  "
           f"{'failed: ' + ', '.join(r['failures']) if r['failures'] else ''}")
 
-assert not bad, f"fix these adapters before spending quota on a sweep: {[r['key'] for r in bad]}"
-print("\\nall green - safe to run a sweep")
+if gated:
+    print(f"\\n{len(gated)} model(s) need a licence + HF_TOKEN: "
+          f"{[r['key'] for r in gated]}")
+if broken:
+    print(f"\\n{len(broken)} adapter(s) are actually broken: "
+          f"{[r['key'] for r in broken]}")
+else:
+    print("\\nno broken adapters - safe to run a sweep on the ones that loaded")
 """
 
 SMOKE_CEILING = """\
@@ -502,10 +518,14 @@ for key in MEASURE:
 
 
 def build_smoke_notebook() -> dict:
+    # Deliberately NOT the gated token block. The token is still resolved (the
+    # repo cell does that unconditionally), but a missing one must not raise
+    # here: this notebook exists to report which adapters fail, and dying at
+    # setup because two of thirteen are gated reports nothing at all.
     return notebook([
         md(SMOKE_HEADER),
         code(CELL_PIP.format(pips="\n".join(f'%pip install -q "{p}"' for p in BASE_PIP))),
-        code(CELL_ENV.format(token_block=TOKEN_BLOCK_GATED)),
+        code(CELL_ENV.format(token_block="")),
         code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
         code("from undertone.adapters.base import get_adapter\n"
              "for key in adapters.list_adapters():\n"
