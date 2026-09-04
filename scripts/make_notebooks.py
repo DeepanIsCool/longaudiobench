@@ -693,6 +693,13 @@ transcripts = asr.transcripts_for(pack, audio_root=PACK_DIR,
                                   cache_dir="/kaggle/working/asr_cache")
 ASR = asr.as_text(transcripts)
 print(f"transcribed {len(ASR)} recordings")
+
+# Whisper stays resident on GPU 0 otherwise, and the leak filter's 7B text model
+# then OOMs with 1.5 GB free - which is exactly how the first real run died
+# *after* successfully writing the item pack.
+asr.unload()
+import gc; gc.collect(); torch.cuda.empty_cache()
+print(f"freed the ASR engine; {torch.cuda.memory_allocated(0)/1e9:.1f} GB still allocated")
 """
 
 CELL_RECOVERY = """\
@@ -716,7 +723,8 @@ def make_solver(model_id="Qwen/Qwen2.5-7B-Instruct"):
     from transformers import AutoModelForCausalLM, AutoTokenizer
     tok = AutoTokenizer.from_pretrained(model_id)
     llm = AutoModelForCausalLM.from_pretrained(
-        model_id, torch_dtype=torch.float16, device_map="auto").eval()
+        model_id, torch_dtype=torch.float16, device_map="auto",
+        max_memory={0: "13GiB", 1: "13GiB", "cpu": "24GiB"}).eval()
     ids = {L: tok.encode(L, add_special_tokens=False)[0] for L in "ABCD"}
 
     def solve(prompt: str):

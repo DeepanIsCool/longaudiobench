@@ -103,6 +103,24 @@ class Candidate:
     why: dict
 
 
+MIN_CONTEXT_TOKENS = 3
+
+
+def context_is_clean(context: str, *mentions: Mention) -> bool:
+    """Reject a context that names any option.
+
+    The first real harvest produced questions anchored on
+    "have a bunch of options from , titanium , rubber , plastic" whose answer was
+    "wood" -- a model could pick the one not listed without hearing anything, and
+    the loud competitor was handed over in the prompt. The context has to
+    identify *where* in the recording to listen, never *what* the answer is.
+    """
+    lowered = context.casefold()
+    if len(lowered.split()) < MIN_CONTEXT_TOKENS:
+        return False
+    return not any(str(m.surface).casefold() in lowered for m in mentions)
+
+
 def _repetition_count(mentions: Iterable[Mention], value: float) -> int:
     return sum(1 for m in mentions if m.value == value)
 
@@ -160,17 +178,28 @@ def _categorize(target: Mention, group: list[Mention], recording: Recording,
                 "lexically_marked": marked,
             }
 
-    # Acoustic causes are measured; C1 is lexical and is the residual. Ordering
-    # it last is what stops a ubiquitous "um" from relabelling a masked or
-    # muttered mention -- and C1 has to fail *differently* from P1-P4 or the
-    # mechanism claim collapses into "hard things are hard".
+    # P3 before the other acoustic causes. Its signature is not flatness alone --
+    # it is a flat aside *against a loud, repeated competing mention*, which is
+    # the conjunction the paper plan names. Checking flatness last produced zero
+    # P3 items on the first real harvest: AMI is ~50% overlapped, so every flat
+    # aside was claimed as P2 or P1 before P3 was ever reached.
+    loudest_repeat = max(
+        (_repetition_count(group, m.value) for m in group if m.value != target.value),
+        default=0)
+    if (feature.is_flat and loudest_repeat >= 2
+            and _repetition_count(group, target.value) == 1):
+        return "P3", {"f0_range_semitones": round(feature.f0_range_semitones, 2),
+                      "competitor_repeats": loudest_repeat}
+
+    # C1 is lexical and is the residual. Ordering it last is what stops a
+    # ubiquitous "um" from relabelling a masked or muttered mention -- and C1 has
+    # to fail *differently* from P1-P4 or the mechanism claim collapses into
+    # "hard things are hard".
     if feature.is_masked:
         return "P2", {"overlap_ratio": round(feature.overlap_ratio, 3)}
     if feature.is_quiet:
         return "P1", {"energy_percentile": round(feature.energy_percentile, 3),
                       "rms_db": round(feature.rms_db, 1)}
-    if feature.is_flat and _repetition_count(group, target.value) == 1:
-        return "P3", {"f0_range_semitones": round(feature.f0_range_semitones, 2)}
 
     span = (text.find(target.surface), text.find(target.surface) + len(target.surface))
     if span[0] >= 0 and _marker_near(text, span, lang, HESITATION_MARKERS):
@@ -208,6 +237,8 @@ def propose(recording: Recording, features: list[SegmentFeatures],
                 continue
             recency = _pick_recency(group, exclude={target.value, salience.value})
             if recency is None:
+                continue
+            if not context_is_clean(target.context, target, salience, recency):
                 continue
             out.append(Candidate(category, target, salience, recency, why))
     return out

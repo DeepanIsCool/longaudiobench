@@ -288,6 +288,51 @@ class TestItemAssembly:
         _, item = self._one()
         assert "five milligrams" not in item.question
 
+    def test_question_does_not_name_its_own_distractors(self):
+        """The first real harvest produced "options from titanium, rubber,
+        plastic" with the answer "wood" - answerable by elimination, with the
+        loud competitor handed over in the prompt."""
+        _, item = self._one()
+        lowered = item.question.casefold()
+        for role in ("correct", "salience", "recency"):
+            assert item.options[role].casefold() not in lowered, role
+
+
+class TestContextGuard:
+    def test_context_naming_an_option_is_rejected(self):
+        from undertone.harvest.build import context_is_clean
+
+        target = mentions.find_mentions("we picked wood for the case", "en", 0, 0, 3)
+        salience = mentions.find_mentions("rubber is cheaper though", "en", 1, 3, 6)
+        assert target and salience
+        assert not context_is_clean("options from titanium , rubber , plastic",
+                                    target[0], salience[0])
+        assert context_is_clean("for the outer case of the unit",
+                                target[0], salience[0])
+
+    def test_a_context_too_short_to_locate_anything_is_rejected(self):
+        from undertone.harvest.build import context_is_clean
+
+        m = mentions.find_mentions("five milligrams", "en", 0, 0, 2)
+        assert not context_is_clean("so", *m)
+        assert not context_is_clean("", *m)
+
+
+class TestP3Ordering:
+    def test_p3_requires_a_repeated_competitor_not_just_flatness(self):
+        """Checking flatness last produced zero P3 on the first real harvest:
+        AMI is ~50% overlapped, so every flat aside was claimed as P2 first."""
+        import inspect
+
+        from undertone.harvest import build
+
+        source = inspect.getsource(build._categorize)
+        p3 = source.index('"P3"')
+        p2 = source.index('"P2"')
+        assert p3 < p2, "P3 must be tested before the other acoustic causes"
+        assert "loudest_repeat" in source
+        assert "competitor_repeats" in source
+
     def test_item_is_marked_unverified(self):
         """Nothing is a real item until a human has listened to it."""
         _, item = self._one()
