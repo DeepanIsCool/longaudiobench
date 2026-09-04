@@ -759,18 +759,49 @@ print(f"\\n{len(pack)} -> {len(kept)} items survived the filter")
 """
 
 CELL_QONLY = """\
-# The floor check. No audio, question and options only: this must sit at ~25%.
-# If it does not, the distractors leak the answer and every downstream number is
-# about the option text rather than about the audio.
-from undertone.protocol import question_only
-from undertone.scoring import parse_free_letter
+# The floor check, and it is NOT "accuracy should be ~25%".
+#
+# The option set includes "not mentioned in the recording", so a model with no
+# audio *should* choose it: abstaining is the correct response to being asked
+# about a recording you cannot hear. The first real run scored 0.112 overall -
+# 16 of 143, against exactly 14 null items - which is that behaviour, not a
+# broken pack. Reading it as a failed 25% floor would have condemned a pack that
+# was working.
+#
+# What actually indicates leakage is the model picking the CORRECT option on
+# NON-NULL items above chance without hearing anything. That is the number to
+# watch.
+from collections import Counter
 
-hits = 0
+from undertone.protocol import question_only
+
+roles = Counter()
+non_null_correct = non_null_total = null_correct = null_total = 0
 for item in pack:
     rendered = question_only(item, seed=SEED)
     letter = solver(rendered.prompt)
-    hits += rendered.letter_to_role.get(letter) == item.correct_role
-print(f"question-only accuracy: {hits}/{len(pack)} = {hits/len(pack):.3f}  (want ~0.25)")
+    role = rendered.letter_to_role.get(letter)
+    roles[role] += 1
+    if item.is_null:
+        null_total += 1
+        null_correct += role == "absent"
+    else:
+        non_null_total += 1
+        non_null_correct += role == "correct"
+
+leak = non_null_correct / max(1, non_null_total)
+print(f"question-only role distribution: {dict(roles)}")
+print(f"  non-null 'correct' rate: {non_null_correct}/{non_null_total} = {leak:.3f}"
+      f"   (chance 0.25; ABOVE chance means the options leak the answer)")
+print(f"  null-item abstention:    {null_correct}/{null_total}")
+print(f"  abstention rate overall: {roles.get('absent', 0) / max(1, len(pack)):.3f}"
+      " (high is expected and correct - it cannot hear the audio)")
+
+if leak > 0.25:
+    print("\\nFAIL: the option text alone beats chance. Distractors are leaking; "
+          "fix the item construction before running any model.")
+else:
+    print("\\nOK: no audio, no signal - the options do not give the answer away.")
 """
 
 CELL_VERIFY = """\
