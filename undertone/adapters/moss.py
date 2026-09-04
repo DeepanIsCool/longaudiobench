@@ -154,6 +154,7 @@ class MossAudio4BInstruct(_MossAudio):
     key = "moss_audio_4b_instruct"
     model_id = "OpenMOSS-Team/MOSS-Audio-4B-Instruct"
     primary = "logits"
+    prefers_single_device = True     # 10.4 GB fits one T4; sharding breaks it
     notes = ("Needs OpenMOSS's own package - the Hub repo has no modeling file "
              "and no transformers release registers moss_audio. "
              "mel_dtype forced to fp16 (sm75). ~5.2B, 10.4GB, one T4.")
@@ -164,6 +165,7 @@ class MossAudio4BThinking(_MossAudio):
     key = "moss_audio_4b_thinking"
     model_id = "OpenMOSS-Team/MOSS-Audio-4B-Thinking"
     primary = "freegen"
+    prefers_single_device = True
     strip_reasoning = True
     notes = "Thinking variant: first token is a thought, so free-gen is primary."
 

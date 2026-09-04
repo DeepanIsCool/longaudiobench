@@ -111,3 +111,26 @@ class TestMixedHardwareGuard:
         rows = [row(signature="mps/float16"), row(signature="cuda/float16")]
         problems = tables.sanity_checks(rows)
         assert any("different backends" in p for p in problems)
+
+
+class TestSingleDevicePreference:
+    def test_moss_4b_is_not_sharded(self):
+        """masked_scatter_ needs source and target co-resident; accelerate
+        splitting a 10.4 GB model across two T4s broke it."""
+        from undertone.adapters.base import _REGISTRY
+
+        assert _REGISTRY["moss_audio_4b_instruct"].prefers_single_device
+        assert _REGISTRY["moss_audio_4b_thinking"].prefers_single_device
+
+    def test_models_that_need_both_gpus_still_shard(self):
+        from undertone.adapters.base import _REGISTRY
+
+        for key in ("qwen2_audio_7b", "moss_audio_8b_instruct", "audio_flamingo_next"):
+            assert not _REGISTRY[key].prefers_single_device, key
+
+    def test_single_device_only_applies_on_cuda(self):
+        from undertone.adapters.base import get_adapter
+
+        a = get_adapter("moss_audio_4b_instruct")
+        a._hardware = env.Hardware("mps", "float16", None, "Apple MPS", 8.0, False)
+        assert "device_map" not in a.load_kwargs()

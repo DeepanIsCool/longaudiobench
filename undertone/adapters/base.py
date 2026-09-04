@@ -141,6 +141,11 @@ class ModelAdapter(ABC):
     # figure assumes. Table 4 reports both, or it reports a ceiling nobody can
     # reach.
     documented_max_audio_s: float | None = None
+    # Some models must not be sharded. MOSS's masked_scatter_ needs source and
+    # target co-resident, and accelerate splitting a 10.4 GB model across two
+    # 15.6 GB T4s produced "source is on cuda:1, different from other tensors on
+    # cuda:0". If it fits on one device, put it on one device.
+    prefers_single_device: bool = False
     is_control: bool = False         # a baseline, not one of the thirteen models
 
     def __init__(self) -> None:
@@ -172,7 +177,9 @@ class ModelAdapter(ABC):
 
         kwargs = {"torch_dtype": torch_dtype(self.hardware), **extra}
         if self.hardware.device_map:
-            kwargs["device_map"] = self.hardware.device_map
+            kwargs["device_map"] = ("cuda:0" if (self.prefers_single_device
+                                                 and self.hardware.backend == "cuda")
+                                    else self.hardware.device_map)
         return kwargs
 
     def place(self, model):
