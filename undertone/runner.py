@@ -20,7 +20,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
-from .adapters.base import ModelAdapter, apply_cap, load_audio
+from .adapters.base import ModelAdapter, Truncation, apply_cap, load_audio
 from .items import ItemPack, MCQItem
 from .ladder import CONDITIONS, window_for
 from .protocol import render
@@ -178,8 +178,14 @@ def _run_cell(
     try:
         path = str(audio_root / item.audio_path) if not Path(item.audio_path).is_absolute() \
             else item.audio_path
-        audio = cache.get(path, window.start, window.end)
+        # Decode only what the model can actually ingest. A 30 s-capped model
+        # was decoding the full 1800 s window and discarding 99% of it, which is
+        # ~115 MB of float32 per cell for nothing.
+        decode_end = min(window.end, window.start + adapter.max_audio_s)
+        audio = cache.get(path, window.start, decode_end)
         capped = apply_cap(audio, adapter.max_audio_s)
+        capped = Truncation(capped.audio, window.seconds > adapter.max_audio_s,
+                            capped.seconds_seen, window.seconds)
         row.update(
             seconds_offered=round(capped.seconds_offered, 2),
             seconds_seen=round(capped.seconds_seen, 2),

@@ -342,7 +342,10 @@ CELL_SELFCHECK = """\
 # checks itself here, where its own pin is installed.
 from undertone.smoke import smoke_adapter
 
-report = smoke_adapter(adapter)
+# keep_loaded: the sweep below reuses this model. Unloading and reloading 17 GB
+# costs ~140 s and the first copy is not reliably freed - which is exactly how
+# this notebook OOM'd on its sweep right after passing every check.
+report = smoke_adapter(adapter, keep_loaded=True)
 for name, result in report["checks"].items():
     print(f"  {'PASS' if result['ok'] else 'FAIL'}  {name}: {result['detail']}")
 if report.get("traceback"):

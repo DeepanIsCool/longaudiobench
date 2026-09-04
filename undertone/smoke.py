@@ -129,8 +129,15 @@ def smoke_adapter(
     langs: tuple[str, ...] = ("en", "hi", "bn"),
     clip_seconds: float = 20.0,
     check_truncation: bool = True,
+    keep_loaded: bool = False,
 ) -> dict[str, Any]:
-    """Run every check against one adapter.  Never raises; returns a report."""
+    """Run every check against one adapter.  Never raises; returns a report.
+
+    ``keep_loaded`` leaves the model in place for a sweep to reuse. Unloading and
+    reloading a 17 GB checkpoint costs ~140 s and, worse, the first copy is not
+    reliably released: a model notebook OOM'd on its sweep immediately after
+    passing every check, because the check's model was still resident.
+    """
     report: dict[str, Any] = {
         **adapter.describe(),
         "checks": {},
@@ -205,7 +212,8 @@ def smoke_adapter(
         record("inference", False, f"{type(exc).__name__}: {exc}")
         report["traceback"] = traceback.format_exc(limit=6)
     finally:
-        adapter.unload()
+        if not keep_loaded:
+            adapter.unload()
 
     report["ok"] = not report["failures"]
     report["seconds"] = round(time.time() - started, 1)
