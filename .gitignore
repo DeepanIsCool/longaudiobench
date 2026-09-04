@@ -56,3 +56,8 @@ dmypy.json
 *.pth
 *.bin
 *.safetensors
+
+# Credentials - never commit. The repo is public; a token pushed here is
+# scraped within minutes.
+.hf_token
+kaggle.json
