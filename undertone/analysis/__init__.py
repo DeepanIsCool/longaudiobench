@@ -9,6 +9,7 @@ from .figures import (
 )
 from .tables import (
     MixedHardware,
+    cost_status,
     sanity_checks,
     scorer_gap,
     table1_main,
@@ -21,7 +22,7 @@ from .tables import (
 )
 
 __all__ = [
-    "MixedHardware", "signatures",
+    "MixedHardware", "signatures", "cost_status",
     "sanity_checks", "scorer_gap", "table1_main", "table1_nulls",
     "table2_ladder", "table4_truncation", "table_language", "usable",
     "all_figures", "fig2_signature", "fig3_fingerprint", "fig4_ladder",

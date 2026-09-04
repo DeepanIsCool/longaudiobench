@@ -190,6 +190,24 @@ def smoke_adapter(
             if lang == langs[0]:
                 first_scores = scores
 
+        # Does the model actually hear the audio? The single most dangerous
+        # silent failure in this project: an adapter that builds a valid prompt
+        # but never attaches the audio still loads, still discriminates between
+        # letters, still parses -- and produces a whole benchmark measuring a
+        # text prior. Two different clips through the same prompt must not give
+        # identical logits.
+        item = demo_item(langs[0])
+        prompt = render(item, window_for(item, "L1"), seed=0).prompt
+        rng = np.random.default_rng(1)
+        other = rng.normal(0, 0.1, size=int(clip_seconds * SAMPLE_RATE)).astype(np.float32)
+        scores_a = adapter.score_letters(capped.audio, prompt)
+        scores_b = adapter.score_letters(apply_cap(other, adapter.max_audio_s).audio, prompt)
+        delta = max(abs(scores_a[k] - scores_b[k]) for k in scores_a)
+        record("hears_audio", delta > 1e-3,
+               {"max_logit_delta": round(delta, 5),
+                "note": "identical logits on different audio means the audio is "
+                        "not reaching the model"})
+
         # Same input twice must give the same answer, or nothing downstream is
         # reproducible and every cross-model comparison is noise.
         item = demo_item(langs[0])

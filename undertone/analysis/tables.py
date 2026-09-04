@@ -66,6 +66,26 @@ def _cell(rows: Sequence[dict], ci: bool) -> dict[str, Any]:
     return out
 
 
+def cost_status(by_condition: dict[str, Sequence[dict[str, Any]]],
+                max_audio_s: float | None = None) -> str:
+    """Why a ladder cost is unavailable, when it is.
+
+    A bare NaN reads as missing data. For a 30 s-capped model every L3 cell is
+    truncated, so there is no L3 accuracy to subtract -- the cost is not
+    missing, it is *not defined* for that model, and a results table has to say
+    which of the two it is.
+    """
+    if not by_condition.get("L1"):
+        return ("no L1 rows: the perception ceiling is unmeasured, so no cost "
+                "is interpretable")
+    if not by_condition.get("L3"):
+        cap = f" (ceiling {max_audio_s:.0f}s)" if max_audio_s else ""
+        return ("RetrievalCost undefined: every L3 cell exceeds this model's input "
+                f"limit{cap} and was truncated, so there is no L3 accuracy to "
+                "subtract")
+    return "ok"
+
+
 def table1_main(rows: Sequence[dict], condition: str = "L3",
                 ci: bool = True) -> list[dict]:
     """Model x category at one ladder condition, with the trap rates alongside.
@@ -148,6 +168,7 @@ def table4_truncation(rows: Sequence[dict], adapters: dict[str, float] | None = 
         out.append({
             "model": model,
             "max_audio_s": limit,
+            "documented_max_audio_s": (adapters or {}).get(f"{model}__documented", limit),
             "cells": len(scoped),
             "truncated": len(truncated),
             "coverage": round(1 - len(truncated) / max(1, len(scoped)), 3),

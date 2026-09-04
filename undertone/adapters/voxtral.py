@@ -33,11 +33,16 @@ from .base import (
 class VoxtralMini3B(ModelAdapter):
     key = "voxtral_mini_3b"
     model_id = "mistralai/Voxtral-Mini-3B-2507"
-    max_audio_s = 2400.0     # 40 min "understanding" ceiling
+    # Mistral document 40 min, which assumes vLLM paged attention. Under HF
+    # sdpa on a 15 GB T4 the 30-minute cells OOM trying to allocate 60.78 GiB:
+    # attention over ~45k audio tokens is quadratic. 600 s is what actually runs.
+    max_audio_s = 600.0
+    documented_max_audio_s = 2400.0
     primary = "logits"
     notes = (
         "Transformers path (not vLLM) so letter logits are readable. "
-        "Needs `pip install mistral-common[audio]`. Audio passed by temp wav."
+        "Documented 40 min; achievable ~10 min on a T4 under sdpa - the 30 min "
+        "cells OOM at 60.78 GiB. Needs `pip install mistral-common[audio]`."
     )
 
     def load(self) -> None:

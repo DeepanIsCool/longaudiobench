@@ -130,3 +130,27 @@ class TestCascadedControl:
 
         source = inspect.getsource(cascaded.CascadedWhisperLLM.transcribe_window)
         assert "vad_filter=False" in source
+
+
+class TestAudioSensitivityCheck:
+    def test_smoke_suite_verifies_the_model_hears_the_audio(self):
+        """An adapter that builds a valid prompt but never attaches the audio
+        loads, discriminates and parses -- and measures a text prior."""
+        import inspect
+
+        from undertone import smoke
+
+        source = inspect.getsource(smoke.smoke_adapter)
+        assert "hears_audio" in source
+        assert "score_letters" in source
+
+    def test_the_check_is_part_of_the_reported_failures(self):
+        from undertone import smoke
+
+        assert "hears_audio" in inspect_source(smoke)
+
+
+def inspect_source(module):
+    import inspect
+
+    return inspect.getsource(module)

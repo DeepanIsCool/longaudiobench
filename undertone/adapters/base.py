@@ -135,6 +135,12 @@ class ModelAdapter(ABC):
     strip_reasoning: bool = False    # True for the Thinking variants
     audio_float_keys: tuple[str, ...] = ("input_features", "audio_data", "input_audio_embeds")
     notes: str = ""                  # documented caveat, carried into results
+    # What the card claims vs what this hardware can actually run. Voxtral
+    # documents 40 minutes; on a T4 the L3 cells OOM trying to allocate 60 GiB,
+    # because naive O(n^2) attention over ~45k audio tokens is not what the
+    # figure assumes. Table 4 reports both, or it reports a ceiling nobody can
+    # reach.
+    documented_max_audio_s: float | None = None
     is_control: bool = False         # a baseline, not one of the thirteen models
 
     def __init__(self) -> None:
@@ -258,6 +264,7 @@ class ModelAdapter(ABC):
             "key": self.key,
             "model_id": self.model_id,
             "max_audio_s": self.max_audio_s,
+            "documented_max_audio_s": self.documented_max_audio_s or self.max_audio_s,
             "primary": self.primary,
             "strip_reasoning": self.strip_reasoning,
             "notes": self.notes,

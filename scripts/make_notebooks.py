@@ -409,7 +409,14 @@ print(f"{len(rows)} rows, {len(usable)} scorable, "
 
 by_cond = {c: [r for r in usable if r["condition"] == c] for c in CONDITIONS}
 costs = scoring.ladder_costs(by_cond)
-print("\\nladder:", json.dumps({k: round(v, 3) for k, v in costs.items()}, indent=2))
+print("\\nladder:", json.dumps(
+    {k: (round(v, 3) if v == v else None) for k, v in costs.items()}, indent=2))
+
+# A NaN cost is not missing data - say which it is.
+from undertone.analysis import cost_status
+status = cost_status(by_cond, adapter.max_audio_s)
+if status != "ok":
+    print(f"\\nNOTE: {status}")
 
 print("\\nper category (L3), salience trap is the headline diagnostic:")
 for cat in ["P1", "P2", "P3", "P4", "C1"]:

@@ -247,3 +247,18 @@ class TestPushKernels:
     def test_title_fits_kaggle_limit(self, push):
         for stem in ("00_smoke_test", "21_moss_audio_8b_thinking", "22_audio_flamingo_next"):
             assert len(push.metadata("u", Path(f"{stem}.ipynb"), True)["title"]) <= 50
+
+
+class TestCostStatus:
+    def test_ok_when_both_conditions_present(self):
+        rows = {"L1": [row(condition="L1")], "L3": [row()]}
+        assert analysis.cost_status(rows) == "ok"
+
+    def test_truncated_l3_is_undefined_not_missing(self):
+        """A 30 s-capped model cannot reach L3; NaN would read as missing data."""
+        status = analysis.cost_status({"L1": [row(condition="L1")], "L3": []}, 30.0)
+        assert "undefined" in status and "30s" in status
+
+    def test_no_l1_means_nothing_is_interpretable(self):
+        status = analysis.cost_status({"L1": [], "L3": [row()]})
+        assert "perception ceiling is unmeasured" in status
