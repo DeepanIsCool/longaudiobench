@@ -303,11 +303,21 @@ print(inspect.getsource(type(adapter)))
 CELL_PACK = """\
 # The item pack is built once on CPU (notebook 01) and attached as a Kaggle
 # Dataset, so a model sweep never re-harvests audio.
-PACK_DIR = "/kaggle/input/{pack}"
-if not os.path.isdir(PACK_DIR):
+# Locate the pack rather than assume the mount name. Kaggle derives the input
+# directory from the dataset slug, and hardcoding "/kaggle/input/{pack}" failed
+# twice against a dataset that was correctly attached the whole time.
+import glob
+
+candidates = sorted(glob.glob("/kaggle/input/*/item_pack.jsonl")
+                    + glob.glob("/kaggle/working/item_pack/item_pack.jsonl"))
+if not candidates:
+    listing = sorted(glob.glob("/kaggle/input/*")) or ["(nothing mounted)"]
     raise FileNotFoundError(
-        f"attach the '{pack}' dataset to this notebook "
-        "(Add Input -> Datasets), or run notebooks/01_build_item_pack.ipynb first")
+        "no item_pack.jsonl under /kaggle/input. Attach the '{pack}' dataset "
+        f"(Add Input -> Datasets), or run 01_build_item_pack first. "
+        f"Currently mounted: {{listing}}")
+PACK_DIR = os.path.dirname(candidates[0])
+print(f"item pack: {{PACK_DIR}}")
 
 pack = ItemPack.load(os.path.join(PACK_DIR, "item_pack.jsonl"))
 print(f"{{len(pack)}} items from {{len({{i.recording_id for i in pack}})}} recordings")
