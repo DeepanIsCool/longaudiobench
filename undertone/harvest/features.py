@@ -29,6 +29,7 @@ class SegmentFeatures:
     energy_percentile: float    # 0-1 within this recording
     overlap_ratio: float        # fraction of the segment covered by another speaker
     f0_range_semitones: float   # 0.0 when F0 was not computed
+    f0_percentile: float        # rank within this recording's measured ranges
     is_quiet: bool
     is_masked: bool
     is_flat: bool
@@ -86,7 +87,7 @@ def segment_features(
     quiet_percentile: float = 0.25,
     quiet_db_drop: float = 6.0,
     masked_ratio: float = 0.30,
-    flat_semitones: float = 2.5,
+    flat_percentile: float = 0.33,
     with_f0: bool = True,
 ) -> list[SegmentFeatures]:
     """Per-segment prominence features for one recording.
@@ -113,23 +114,39 @@ def segment_features(
     n = max(1, len(levels))
     median_db = float(np.median(levels)) if levels else -120.0
 
+    # F0 range is ranked within this recording, like energy. An absolute
+    # semitone cut is the wrong instrument: measured ranges on AMI run from 0.3
+    # to 28 semitones with a median near 14, so a fixed 2.5 threshold selects a
+    # handful of segments and P3 came out empty on the first real harvest.
+    f0_values = [f0_range_semitones(chunks[i], sr) if with_f0 else 0.0
+                 for i in range(len(recording.segments))]
+    measured = [v for v in f0_values if v > 0]
+    measured_sorted = sorted(measured)
+
     out: list[SegmentFeatures] = []
     for i, segment in enumerate(recording.segments):
         percentile = float(order[i]) / n
         overlap = overlap_ratio(segment, recording.segments)
-        f0_range = f0_range_semitones(chunks[i], sr) if with_f0 else 0.0
+        f0_range = f0_values[i]
+        if f0_range > 0 and measured_sorted:
+            rank = sum(1 for v in measured_sorted if v < f0_range)
+            f0_pct = rank / len(measured_sorted)
+        else:
+            f0_pct = float("nan")     # unmeasured, never "flat"
         out.append(SegmentFeatures(
             index=i,
             rms_db=levels[i],
             energy_percentile=percentile,
             overlap_ratio=overlap,
             f0_range_semitones=f0_range,
+            f0_percentile=f0_pct,
             is_quiet=(percentile <= quiet_percentile
                       and levels[i] <= median_db - quiet_db_drop
                       and overlap < masked_ratio),
             is_masked=overlap >= masked_ratio,
-            # 0.0 means "not measured", which must not read as flat.
-            is_flat=0.0 < f0_range <= flat_semitones,
+            # Bottom tercile of this recording's own measured pitch ranges.
+            # NaN (unmeasured) is never flat -- guessing would manufacture P3.
+            is_flat=f0_pct == f0_pct and f0_pct <= flat_percentile,
         ))
     return out
 

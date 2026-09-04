@@ -77,6 +77,7 @@ REPAIR_QUESTION = {
 REPAIR_WINDOW_SECONDS = 6.0     # a self-repair follows its error closely
 MIN_DISTINCT_VALUES = 3         # correct + salience + recency, all different
 MARKER_WINDOW_CHARS = 45        # how close a hesitation marker must be to count
+P3_COMPETITOR_ENERGY = 0.66     # top tercile of this recording's own segments
 
 
 def _marker_near(text: str, span: tuple[int, int], lang: str,
@@ -183,13 +184,25 @@ def _categorize(target: Mention, group: list[Mention], recording: Recording,
     # the conjunction the paper plan names. Checking flatness last produced zero
     # P3 items on the first real harvest: AMI is ~50% overlapped, so every flat
     # aside was claimed as P2 or P1 before P3 was ever reached.
-    loudest_repeat = max(
-        (_repetition_count(group, m.value) for m in group if m.value != target.value),
-        default=0)
-    if (feature.is_flat and loudest_repeat >= 2
+    competitors = [m for m in group if m.value != target.value]
+    loudest_repeat = max((_repetition_count(group, m.value) for m in competitors),
+                         default=0)
+    competitor_energy = max(
+        (features[m.segment_index].energy_percentile for m in competitors), default=0.0)
+    # "Stressed AND repeated" is a disjunction in practice: a competitor said
+    # once but loudly is as much a salience trap as one said flatly three times.
+    # Requiring both, against absolute thresholds, produced zero P3 items on a
+    # 514-proposal harvest.
+    competitor_is_prominent = (loudest_repeat >= 2
+                               or competitor_energy >= P3_COMPETITOR_ENERGY)
+    if (feature.is_flat and competitor_is_prominent
             and _repetition_count(group, target.value) == 1):
         return "P3", {"f0_range_semitones": round(feature.f0_range_semitones, 2),
-                      "competitor_repeats": loudest_repeat}
+                      "f0_percentile": round(feature.f0_percentile, 3),
+                      "competitor_repeats": loudest_repeat,
+                      "competitor_energy_percentile": round(competitor_energy, 3),
+                      "prominence_contrast": round(
+                          competitor_energy - feature.energy_percentile, 3)}
 
     # C1 is lexical and is the residual. Ordering it last is what stops a
     # ubiquitous "um" from relabelling a masked or muttered mention -- and C1 has
