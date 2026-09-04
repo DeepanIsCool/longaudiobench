@@ -298,6 +298,19 @@ class TestItemAssembly:
             assert item.options[role].casefold() not in lowered, role
 
 
+    def test_item_is_marked_unverified(self):
+        """Nothing is a real item until a human has listened to it."""
+        _, item = self._one()
+        assert item.provenance["verified"] is False
+        assert item.provenance["leak_checked"] is False
+
+    def test_provenance_records_where_the_distractors_came_from(self):
+        _, item = self._one()
+        assert item.provenance["salience_at"] == pytest.approx(0.0, abs=15.0)
+        assert item.provenance["recency_at"] > 190.0
+        assert item.provenance["quantity_kind"] == "mass"
+
+
 class TestContextGuard:
     def test_context_naming_an_option_is_rejected(self):
         from undertone.harvest.build import context_is_clean
@@ -332,18 +345,6 @@ class TestP3Ordering:
         assert p3 < p2, "P3 must be tested before the other acoustic causes"
         assert "loudest_repeat" in source
         assert "competitor_repeats" in source
-
-    def test_item_is_marked_unverified(self):
-        """Nothing is a real item until a human has listened to it."""
-        _, item = self._one()
-        assert item.provenance["verified"] is False
-        assert item.provenance["leak_checked"] is False
-
-    def test_provenance_records_where_the_distractors_came_from(self):
-        _, item = self._one()
-        assert item.provenance["salience_at"] == pytest.approx(0.0, abs=15.0)
-        assert item.provenance["recency_at"] > 190.0
-        assert item.provenance["quantity_kind"] == "mass"
 
 
 # ---------------------------------------------------------------- leak filter
