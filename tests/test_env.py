@@ -129,6 +129,8 @@ class TestSingleDevicePreference:
             assert not _REGISTRY[key].prefers_single_device, key
 
     def test_single_device_only_applies_on_cuda(self):
+        """load_kwargs resolves a real torch dtype, so this needs torch."""
+        pytest.importorskip("torch")
         from undertone.adapters.base import get_adapter
 
         a = get_adapter("moss_audio_4b_instruct")
