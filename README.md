@@ -211,18 +211,19 @@ cell where nothing was found.
 
 ## Retired: LongAudioBench
 
-`longaudiobench/` is kept for two reusable pieces (`mix_audio_at_timestamp`'s SNR maths and the
-bootstrap helper) and for the record. Its four tasks are **not** used: three had ground truth that was
-never derived from the audio.
+The previous four-task suite has been **removed** from the tree. Three of its
+tasks had ground truth that was never derived from the audio, so its outputs
+could not be evidence for anything:
 
 | Task | Defect |
 |---|---|
-| Narrative Coherence | `verdict = random.choice(["Validates","Debunks"])`; Clues B and C were never mixed into any audio |
-| Speaker Drift | `target_speaker_id` fixed at 2, first appearance a constant `01:00`. Always answering "Speaker 3, 01:00" scored 1.0 |
+| Narrative Coherence | `verdict = random.choice(["Validates","Debunks"])`; clues B and C were never mixed into any audio |
+| Speaker Drift | `target_speaker_id` fixed at 2, first appearance a constant `01:00` - always answering "Speaker 3, 01:00" scored 1.0 |
 | Soundscape | event timeline generated randomly *before* the audio |
 | ANiH | audio-derived timestamp, but synthetic damped-sine needles and a hardcoded `preceding_sound` label |
 
-`tests/test_core.py` still tests those classes and is excluded from the suite above.
+Its code is recoverable from git history (removed in the commit that references
+this section). Its result files are archived in `archive/` and gitignored.
 
 ## License
 

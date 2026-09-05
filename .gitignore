@@ -61,3 +61,6 @@ dmypy.json
 # scraped within minutes.
 .hf_token
 kaggle.json
+
+# Archived outputs of the retired LongAudioBench runs
+archive/
