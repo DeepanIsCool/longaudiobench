@@ -154,3 +154,23 @@ def inspect_source(module):
     import inspect
 
     return inspect.getsource(module)
+
+
+class TestGenerationHead:
+    def test_af_next_prefers_the_conditional_generation_class(self):
+        """AutoModel returns the base MusicFlamingoModel, which loads and scores
+        logits fine and then dies on .generate() at inference."""
+        import inspect
+
+        from undertone.adapters import audio_flamingo
+
+        src = inspect.getsource(audio_flamingo.AudioFlamingoNext.load)
+        assert src.index("MusicFlamingoForConditionalGeneration") < src.index("AutoModel")
+
+    def test_a_model_without_generate_is_rejected_at_load(self):
+        import inspect
+
+        from undertone.adapters import audio_flamingo
+
+        src = inspect.getsource(audio_flamingo.AudioFlamingoNext.load)
+        assert 'hasattr(model, "generate")' in src

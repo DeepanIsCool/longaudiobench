@@ -54,15 +54,23 @@ class AudioFlamingoNext(ModelAdapter):
         # `musicflamingo` has to be registered in transformers itself. It is not
         # in 4.57.1 (which MOSS and Aero need), which is why this model carries
         # its own pin. AudioTextToText is its pipeline tag.
+        # The concrete class first. AutoModel returns the base MusicFlamingoModel,
+        # which has no generation head - it loads, scores logits, and then dies
+        # on .generate(), so the failure surfaces only at inference.
         errors = []
-        for name in ("AutoModelForAudioTextToText", "AutoModel",
-                     "AutoModelForSeq2SeqLM"):
+        for name in ("MusicFlamingoForConditionalGeneration",
+                     "AutoModelForAudioTextToText", "AutoModelForSeq2SeqLM",
+                     "AutoModel"):
             cls = getattr(transformers, name, None)
             if cls is None:
                 continue
             try:
-                self.model = self.place(cls.from_pretrained(
-                    self.model_id, **self.load_kwargs()))
+                model = cls.from_pretrained(self.model_id, **self.load_kwargs())
+                if not hasattr(model, "generate"):
+                    errors.append(f"{name}: loaded a model with no generate()")
+                    del model
+                    continue
+                self.model = self.place(model)
                 self.loaded_via = name
                 return
             except Exception as exc:  # noqa: BLE001
