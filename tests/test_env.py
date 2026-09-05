@@ -182,3 +182,35 @@ class TestMoss8BDevicePlacement:
                     "gemma3n_e4b"):
             cls = _REGISTRY[key]
             assert cls.single_gpu_with_cpu_overflow or cls.prefers_single_device, key
+
+
+class TestHardwareBlocked:
+    def test_gemma_e4b_is_marked_blocked_not_broken(self):
+        """16 GB fp16 against a 15.6 GB T4: splitting gives a device mismatch,
+        CPU overflow gives one inside clamp. Absent-because-too-big is a
+        different fact from ran-and-scored-badly."""
+        from undertone.adapters.base import _REGISTRY
+
+        assert _REGISTRY["gemma3n_e4b"].hardware_blocked
+
+    def test_models_that_fit_are_not_marked(self):
+        from undertone.adapters.base import _REGISTRY
+
+        for key in ("aero_1_audio", "voxtral_mini_3b", "gemma3n_e2b",
+                    "moss_audio_4b_instruct"):
+            assert _REGISTRY[key].hardware_blocked is None, key
+
+    def test_the_flag_reaches_the_results(self):
+        from undertone.adapters.base import get_adapter
+
+        assert "hardware_blocked" in get_adapter("gemma3n_e4b").describe()
+
+    def test_cpu_overflow_leaves_room_for_activations(self):
+        """MOSS-8B passed smoke on a 20 s clip and OOM'd mid-sweep with 88 MiB
+        free - 14 GiB of weights on a 14.56 GiB card."""
+        pytest.importorskip("torch")
+        from undertone.adapters.base import get_adapter
+
+        a = get_adapter("moss_audio_8b_instruct")
+        a._hardware = env.Hardware("cuda", "float16", "auto", "2x T4", 31.0, False)
+        assert a.load_kwargs()["max_memory"][0] == "11GiB"

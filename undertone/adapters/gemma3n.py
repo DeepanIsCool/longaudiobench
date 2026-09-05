@@ -76,8 +76,14 @@ class Gemma3nE2B(_Gemma3n):
 class Gemma3nE4B(_Gemma3n):
     key = "gemma3n_e4b"
     model_id = "google/gemma-3n-E4B-it"
-    # 7.85B raw, ~16 GB fp16 - does not fit a 15.6 GB T4, but splitting across
-    # two GPUs hits the same device mismatch as E2B. Overflow to CPU instead:
-    # slower, and it runs.
+    # 7.85B raw, ~16 GB fp16 against a 15.6 GB T4. Neither placement works:
+    # splitting across two GPUs gives the E2B device mismatch, and CPU overflow
+    # gives "min is on cpu, different from other tensors on cuda:0" inside
+    # clamp - its forward does not tolerate a split at all.
+    #
+    # This model is hardware-blocked on Kaggle's T4, not broken. Reported as
+    # such rather than quietly dropped, and it would run unchanged on a 24 GB
+    # card.
     single_gpu_with_cpu_overflow = True
+    hardware_blocked = "needs >16 GB on one device; T4 is 15.6 GB"
     notes = "Gated. 30 s encoder cap. 7.85B raw params -> sharded over 2xT4."

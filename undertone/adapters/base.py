@@ -141,6 +141,11 @@ class ModelAdapter(ABC):
     # figure assumes. Table 4 reports both, or it reports a ceiling nobody can
     # reach.
     documented_max_audio_s: float | None = None
+
+    # Set when a model cannot run on this hardware at all. A model that is
+    # absent because the GPU is too small is a different fact from one that ran
+    # and scored badly, and Table 4 has to say which.
+    hardware_blocked: str | None = None
     # Some models must not be sharded. MOSS's masked_scatter_ needs source and
     # target co-resident, and accelerate splitting a 10.4 GB model across two
     # 15.6 GB T4s produced "source is on cuda:1, different from other tensors on
@@ -193,7 +198,11 @@ class ModelAdapter(ABC):
                 kwargs["device_map"] = "cuda:0"
             elif self.single_gpu_with_cpu_overflow and self.hardware.backend == "cuda":
                 kwargs["device_map"] = "auto"
-                kwargs["max_memory"] = {0: "14GiB", "cpu": "24GiB"}
+                # 11 GiB, not 14. At 14 the weights fill a 14.56 GiB card and
+                # MOSS-8B OOM'd mid-sweep with 88 MiB free: it passed smoke on a
+                # 20 s clip and died once the audio got longer. Activations for
+                # a 5-minute window need room the weights were holding.
+                kwargs["max_memory"] = {0: "11GiB", "cpu": "32GiB"}
             else:
                 kwargs["device_map"] = self.hardware.device_map
         return kwargs
@@ -297,6 +306,7 @@ class ModelAdapter(ABC):
             "dtype": self.hardware.dtype,
             "hardware": self.hardware.detail,
             "signature": self.hardware.signature,
+            "hardware_blocked": self.hardware_blocked,
             "versions": versions(),
         }
 
