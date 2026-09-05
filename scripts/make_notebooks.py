@@ -716,7 +716,10 @@ CELL_BUILD = """\
 # Measured yield is ~3.5 usable proposals per AMI meeting, so 180 items needs
 # roughly 50 meetings.
 LANGS = "en"
-N_MEETINGS = 25      # ~90 proposals at the measured 3.5/meeting
+# More meetings, because capping the band at 10 min means only needles inside
+# each meeting's first 10 minutes qualify - roughly a third of the previous
+# yield per meeting.
+N_MEETINGS = 60
 
 # Build the list here, not in a $(...) subshell: the subshell does not inherit
 # this notebook's sys.path, so the import fails silently, --meetings gets an

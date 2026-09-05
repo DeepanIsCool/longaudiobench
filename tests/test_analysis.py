@@ -285,3 +285,16 @@ class TestL3FailureReason:
 
     def test_empty_is_not_an_error(self):
         assert analysis.l3_failure_reason([])["n"] == 0
+
+
+class TestBandCap:
+    def test_bands_are_capped_to_what_a_t4_can_run(self, script):
+        """At 1800 s every model errors at L3 - quadratic attention over ~45k
+        audio tokens. A band nobody can run measures nothing."""
+        assert script.MAX_RUNNABLE_BAND == 600
+        assert script.band_for(3600) == 600
+        assert script.band_for(700) == 600
+        assert script.band_for(400) == 300
+
+    def test_the_cap_is_overridable_for_bigger_hardware(self, script):
+        assert script.band_for(3600, cap=1800) == 1800

@@ -34,9 +34,20 @@ NULL_SHARE = 0.10
 SAMPLE_RATE = 16000
 
 
-def band_for(duration: float) -> int:
-    """Largest band a recording can fill. Bands are prefixes, never excerpts."""
-    usable = [b for b in BANDS if b <= duration]
+# Largest band that a 15 GB GPU can actually hold. At 1800 s every model in the
+# roster errors at L3: ~45k audio tokens, quadratic attention, one model tried
+# to allocate 60.78 GiB. A band nobody can run measures nothing.
+#
+# This is also the version the paper plan argues for. Section 7 chose the bands
+# "so the claim reads 'fails at 8 minutes' rather than 'fails at 90', which
+# removes duration as an explanation", and F1 is that type dominates duration --
+# demonstrated by failure at SHORT durations, not long ones.
+MAX_RUNNABLE_BAND = 600
+
+
+def band_for(duration: float, cap: int = MAX_RUNNABLE_BAND) -> int:
+    """Largest runnable band a recording can fill. Bands are prefixes."""
+    usable = [b for b in BANDS if b <= duration and b <= cap]
     return usable[-1] if usable else BANDS[0]
 
 
@@ -154,6 +165,9 @@ def main() -> int:
     ap.add_argument("--target", type=int, default=180,
                     help="primary items before null items are added")
     ap.add_argument("--seed", type=int, default=20260904)
+    ap.add_argument("--band-cap", type=int, default=MAX_RUNNABLE_BAND,
+                    help="largest duration band to emit; 1800 needs a GPU that "
+                         "can hold ~45k audio tokens of attention")
     ap.add_argument("--no-f0", action="store_true",
                     help="skip the pitch pass (faster; disables P3 detection)")
     args = ap.parse_args()
@@ -173,7 +187,7 @@ def main() -> int:
     for recording, source_path in collect_recordings(
             args.langs, args.meetings, args.per_lang, args.audio_cache):
         duration = recording.duration or librosa.get_duration(path=source_path)
-        band = band_for(duration)
+        band = band_for(duration, args.band_cap)
         if duration < BANDS[0]:
             print(f"{recording.recording_id}: {duration:.0f}s is under the "
                   f"{BANDS[0]}s floor, skipping")
