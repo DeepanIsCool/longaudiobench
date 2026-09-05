@@ -214,3 +214,32 @@ class TestHardwareBlocked:
         a = get_adapter("moss_audio_8b_instruct")
         a._hardware = env.Hardware("cuda", "float16", "auto", "2x T4", 31.0, False)
         assert a.load_kwargs()["max_memory"][0] == "11GiB"
+
+
+class TestAttentionBackend:
+    def test_every_model_asks_for_sdpa_except_phi4(self):
+        """The math kernel materialises the full attention matrix - a 60 GiB
+        allocation over ~45k audio tokens, which is what made L3 unreachable.
+        Voxtral, MOSS, Gemma-3n and AF-Next were all defaulting to it."""
+        from undertone import adapters
+
+        for key in adapters.list_adapters():
+            a = adapters.get_adapter(key)
+            if key == "phi4_multimodal":
+                assert a.attn_implementation is None, "its remote code wants eager"
+            else:
+                assert a.attn_implementation == "sdpa", key
+
+    def test_the_preference_is_reported_not_assumed(self):
+        """Returns what was actually enabled - silently failing to switch
+        backends would leave the memory wall exactly where it was."""
+        result = env.prefer_memory_efficient_attention()
+        assert result in {"torch absent", "cpu", "default",
+                          "mem_efficient (math fallback)",
+                          "mem_efficient (legacy toggles)"}
+
+    def test_flash_is_not_requested_on_sm75(self):
+        import inspect
+
+        src = inspect.getsource(env.prefer_memory_efficient_attention)
+        assert "enable_flash_sdp(False)" in src

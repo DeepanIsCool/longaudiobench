@@ -306,6 +306,12 @@ elif globals().get("GATED"):
         "this model is gated and no token was found. Add a Kaggle secret named "
         "HF_TOKEN, or write the token to .hf_token at the repo root.")
 
+# O(n) attention instead of O(n^2). The math kernel materialises the full
+# attention matrix; over ~45k audio tokens that is a 60 GiB allocation on a
+# 15.6 GB card, and sharding across two T4s does not help because the matrix
+# lives on one device. FlashAttention needs sm80+; this one runs on sm75.
+print("attention backend:", env.prefer_memory_efficient_attention())
+
 hw = env.resolve_hardware()
 print(f"hardware: {{hw.detail}}  dtype={{hw.dtype}}  signature={{hw.signature}}")
 print(f"versions: {{env.versions()}}")

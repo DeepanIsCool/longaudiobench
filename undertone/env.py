@@ -144,6 +144,41 @@ def torch_dtype(hardware: Hardware | None = None):
     return getattr(torch, (hardware or resolve_hardware()).dtype)
 
 
+def prefer_memory_efficient_attention() -> str:
+    """Ask torch for the O(n) attention kernel instead of the O(n^2) one.
+
+    The math backend materialises the full attention matrix. Over ~45k audio
+    tokens that is the 60.78 GiB allocation that killed every L3 cell on a
+    15.6 GB card - and sharding across two T4s does not help, because the
+    matrix lives on one device.
+
+    FlashAttention needs sm80+, which a T4 is not. The *memory-efficient*
+    backend is a different kernel, is O(n) in memory, and does run on sm75.
+    Enabling it is the difference between L3 being reachable and not.
+
+    Returns what was actually enabled, for the record.
+    """
+    try:
+        import torch
+    except ImportError:
+        return "torch absent"
+    if not torch.cuda.is_available():
+        return "cpu"
+    try:
+        from torch.nn.attention import SDPBackend, sdpa_kernel  # torch >= 2.3
+
+        sdpa_kernel([SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]).__enter__()
+        return "mem_efficient (math fallback)"
+    except Exception:  # noqa: BLE001 - older torch
+        try:
+            torch.backends.cuda.enable_mem_efficient_sdp(True)
+            torch.backends.cuda.enable_math_sdp(True)
+            torch.backends.cuda.enable_flash_sdp(False)   # needs sm80+
+            return "mem_efficient (legacy toggles)"
+        except Exception:  # noqa: BLE001
+            return "default"
+
+
 def require_torch() -> None:
     try:
         import torch  # noqa: F401

@@ -32,6 +32,10 @@ class Phi4Multimodal(ModelAdapter):
         "exceeding the documented QA guidance."
     )
     qa_guidance_s = 40.0
+    # Its remote code specifies eager for pre-Ampere GPUs. That is the math
+    # kernel, so this model pays the O(n^2) attention cost the others avoid -
+    # and it is why Phi-4 is expected to hit the memory wall earliest.
+    attn_implementation = None
 
     def load(self) -> None:
         import torch

@@ -182,6 +182,11 @@ class ModelAdapter(ABC):
             self._hardware = resolve_hardware()
         return self._hardware
 
+    # sdpa unless a model's own remote code demands otherwise. Without it
+    # transformers falls back to the math kernel, which materialises the whole
+    # attention matrix - the 60 GiB allocation that made L3 unreachable.
+    attn_implementation: str | None = "sdpa"
+
     def load_kwargs(self, **extra) -> dict:
         """``from_pretrained`` kwargs for whatever this machine is.
 
@@ -193,6 +198,8 @@ class ModelAdapter(ABC):
         from ..env import torch_dtype
 
         kwargs = {"torch_dtype": torch_dtype(self.hardware), **extra}
+        if self.attn_implementation and "attn_implementation" not in kwargs:
+            kwargs["attn_implementation"] = self.attn_implementation
         if self.hardware.device_map:
             if self.prefers_single_device and self.hardware.backend == "cuda":
                 kwargs["device_map"] = "cuda:0"
