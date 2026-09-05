@@ -146,6 +146,13 @@ class ModelAdapter(ABC):
     # 15.6 GB T4s produced "source is on cuda:1, different from other tensors on
     # cuda:0". If it fits on one device, put it on one device.
     prefers_single_device: bool = False
+
+    # How many tokens generation gets. Eight is plenty for a model that answers
+    # with a letter, and nowhere near enough for one that reasons first: the
+    # Thinking variants emitted "<think>\nFor this question, I need" and were cut
+    # off before reaching an answer, so strip_cot removed the whole fragment and
+    # every cell came back unparseable.
+    generation_budget: int = 8
     is_control: bool = False         # a baseline, not one of the thirteen models
 
     def __init__(self) -> None:
@@ -236,7 +243,7 @@ class ModelAdapter(ABC):
         return letter_logits(self.forward_logits(inputs), self.letter_ids)
 
     def generate(self, audio: np.ndarray, prompt: str, sr: int = SAMPLE_RATE,
-                 max_new_tokens: int = 8) -> str:
+                 max_new_tokens: int | None = None) -> str:
         import torch
 
         inputs = self.build_inputs(audio, prompt, sr)
@@ -244,7 +251,7 @@ class ModelAdapter(ABC):
         with torch.no_grad():
             out = self.model.generate(
                 **inputs,
-                max_new_tokens=max_new_tokens,
+                max_new_tokens=max_new_tokens or self.generation_budget,
                 do_sample=False,          # deterministic: reruns must match exactly
                 temperature=None,
                 top_p=None,

@@ -84,7 +84,7 @@ def run_model(
     seed: int = DEFAULT_SEED,
     run_id: str = "pilot",
     also_generate: bool = True,
-    max_new_tokens: int = 8,
+    max_new_tokens: int | None = None,
     audio_root: str | Path = ".",
     max_consecutive_errors: int = 5,
     progress: bool = True,
@@ -203,7 +203,7 @@ def _run_cell(
 
         if also_generate:
             text = adapter.generate(capped.audio, rendered.prompt,
-                                    max_new_tokens=max_new_tokens)
+                                    max_new_tokens=max_new_tokens)  # None -> budget
             gen_letter = parse_free_letter(text, strip_reasoning=adapter.strip_reasoning)
             row.update(
                 gen_text=text,

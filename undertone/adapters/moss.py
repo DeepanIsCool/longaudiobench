@@ -184,4 +184,5 @@ class MossAudio8BThinking(_MossAudio):
     model_id = "OpenMOSS-Team/MOSS-Audio-8B-Thinking"
     primary = "freegen"
     strip_reasoning = True
+    generation_budget = 1024
     notes = "Thinking variant on 2xT4; free-gen primary, logits diagnostic."

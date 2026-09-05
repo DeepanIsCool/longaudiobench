@@ -183,7 +183,7 @@ def smoke_adapter(
             record(f"discriminates[{lang}]", not is_degenerate(scores),
                    f"spread={max(scores.values()) - min(scores.values()):.3f}")
 
-            text = adapter.generate(capped.audio, prompt, max_new_tokens=8)
+            text = adapter.generate(capped.audio, prompt)
             letter = parse_free_letter(text, strip_reasoning=adapter.strip_reasoning)
             record(f"parses[{lang}]", letter is not None, repr(text[:120]))
 

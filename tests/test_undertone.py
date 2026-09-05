@@ -369,3 +369,28 @@ class TestTruncation:
         out = apply_cap(np.zeros(16000 * 10, dtype="float32"), max_audio_s=30.0)
         assert not out.truncated
         assert out.seconds_seen == out.seconds_offered == pytest.approx(10.0)
+
+
+class TestGenerationBudget:
+    def test_thinking_variants_get_room_to_reason(self):
+        """At 8 tokens they were cut off mid-<think> and never reached an answer."""
+        from undertone import adapters
+
+        for key in adapters.list_adapters():
+            a = adapters.get_adapter(key)
+            if a.strip_reasoning:
+                assert a.generation_budget >= 512, key
+            else:
+                assert a.generation_budget <= 32, key
+
+    def test_a_truncated_think_block_is_unparseable_not_wrong(self):
+        from undertone import scoring
+
+        cut = "<think>\nFor this question, I need"
+        assert scoring.parse_free_letter(cut, strip_reasoning=True) is None
+
+    def test_a_completed_think_block_yields_its_answer(self):
+        from undertone import scoring
+
+        full = "<think>\nThe quiet one said five.\n</think>\nB"
+        assert scoring.parse_free_letter(full, strip_reasoning=True) == "B"
