@@ -165,6 +165,10 @@ def _run_cell(
         "category": item.category,
         "sector": item.sector,
         "duration_band": item.duration_band,
+        # Carried through for F2's dose-response and for the constructed-arm
+        # split; the analysis cannot recover them from the pack alone.
+        "repetition_count": item.provenance.get("repetition_count"),
+        "constructed": bool(item.provenance.get("constructed")),
         "condition": condition,
         "window_start": window.start,
         "window_end": window.end,

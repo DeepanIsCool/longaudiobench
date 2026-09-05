@@ -34,15 +34,17 @@ NULL_SHARE = 0.10
 SAMPLE_RATE = 16000
 
 
-# Largest band that a 15 GB GPU can actually hold. At 1800 s every model in the
-# roster errors at L3: ~45k audio tokens, quadratic attention, one model tried
-# to allocate 60.78 GiB. A band nobody can run measures nothing.
+# Largest band a 15 GB GPU can actually hold, measured rather than guessed.
+# At 1800 s every model errors at L3. At 600 s only Aero (1.5B) completes a
+# ladder; MOSS-4B, Phi-4 (5.5B) and Voxtral (4.7B) still error on essentially
+# every L3 cell. The wall tracks parameter count, so 300 s is what lets the
+# whole roster reach L3 - and a band only one model can run is not a comparison.
 #
 # This is also the version the paper plan argues for. Section 7 chose the bands
 # "so the claim reads 'fails at 8 minutes' rather than 'fails at 90', which
 # removes duration as an explanation", and F1 is that type dominates duration --
 # demonstrated by failure at SHORT durations, not long ones.
-MAX_RUNNABLE_BAND = 600
+MAX_RUNNABLE_BAND = 300
 
 
 def band_for(duration: float, cap: int = MAX_RUNNABLE_BAND) -> int:

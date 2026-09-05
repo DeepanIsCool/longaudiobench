@@ -553,3 +553,70 @@ class TestWindowRequiresRealDuration:
         rec = toy_recording(segs, duration=0.0)
         rec.duration = 2400.0
         assert len(rec.windows(600)) == 4
+
+
+# ---------------------------------------------------------------- P3-constructed
+
+class TestConstructedArm:
+    def _audio(self, seconds=30.0, sr=16000):
+        rng = np.random.default_rng(0)
+        return rng.normal(0, 0.2, int(seconds * sr)).astype(np.float32)
+
+    def test_the_contrast_is_actually_created(self):
+        """P3 is defined by a prominence contrast. On AMI it yields ~10 items
+        and its trap rate came out lowest of five categories - the paper plan
+        names this as its top risk and prescribes exactly this arm."""
+        from undertone.harvest import construct
+
+        audio = self._audio()
+        before = construct.measure_contrast(audio, (10.0, 11.0), (20.0, 21.0))
+        edited, edits = construct.construct_p3(audio, 10.0, 11.0, [(20.0, 21.0)])
+        after = construct.measure_contrast(edited, (10.0, 11.0), (20.0, 21.0))
+        assert after - before > 8.0, (before, after)
+        assert len(edits) == 2
+
+    def test_nothing_is_cut_or_inserted(self):
+        """Only relative loudness changes - every word stays where it was."""
+        from undertone.harvest import construct
+
+        audio = self._audio()
+        edited, _ = construct.construct_p3(audio, 10.0, 11.0, [(20.0, 21.0)])
+        assert len(edited) == len(audio)
+        untouched = slice(int(25 * 16000), int(28 * 16000))
+        assert np.allclose(edited[untouched], audio[untouched])
+
+    def test_edits_are_recorded_for_audit(self):
+        from undertone.harvest import construct
+
+        _, edits = construct.construct_p3(self._audio(), 10.0, 11.0,
+                                          [(20.0, 21.0), (24.0, 25.0)])
+        assert [e["gain_db"] for e in edits] == [
+            construct.TARGET_ATTENUATION_DB,
+            construct.COMPETITOR_BOOST_DB,
+            construct.COMPETITOR_BOOST_DB,
+        ]
+        assert all({"start", "end", "gain_db"} == set(e) for e in edits)
+
+    def test_the_attenuated_span_is_still_audible(self):
+        """Beyond roughly 12 dB the aside stops being recoverable and the item
+        becomes a perception test rather than a retrieval one."""
+        from undertone.harvest import construct
+
+        assert construct.TARGET_ATTENUATION_DB > -12.0
+
+    def test_gain_is_ramped_not_stepped(self):
+        from undertone.harvest import construct
+
+        audio = np.ones(16000 * 4, dtype=np.float32)
+        edited = construct.apply_gain_edits(
+            audio, [construct.GainEdit(1.0, 3.0, -9.0)])
+        ramp = edited[16000:16000 + int(construct.RAMP_SECONDS * 16000)]
+        assert ramp[0] > ramp[-1], "gain should ease in, not step"
+        assert len(set(np.round(ramp, 3))) > 3, "a step would click"
+
+    def test_output_never_clips(self):
+        from undertone.harvest import construct
+
+        loud = np.full(16000, 0.9, dtype=np.float32)
+        out = construct.apply_gain_edits(loud, [construct.GainEdit(0.0, 1.0, 12.0)])
+        assert float(np.max(np.abs(out))) <= 1.0

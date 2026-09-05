@@ -292,6 +292,10 @@ def to_item(recording: Recording, candidate: Candidate, band: int,
             "leak_checked": False,
             "why": candidate.why,
             "quantity_kind": candidate.target.kind,
+            # F2 is not just "B-choice exceeds chance" - the paper plan says it
+            # "rises with distractor repetition count". Without this the
+            # dose-response cannot be plotted at all.
+            "repetition_count": candidate.why.get("competitor_repeats", 1),
             "salience_at": round(candidate.salience.start, 2),
             "recency_at": round(candidate.recency.start, 2),
             "source_recording": recording.meta.get("source_recording",

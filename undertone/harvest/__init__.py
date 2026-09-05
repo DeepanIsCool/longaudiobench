@@ -20,6 +20,12 @@ from .asr import (
     transcripts_for,
 )
 from .build import Candidate, propose, to_item
+from .construct import (
+    GainEdit,
+    apply_gain_edits,
+    construct_p3,
+    measure_contrast,
+)
 from .features import SegmentFeatures, segment_features
 from .leakfilter import GATE, LeakReport, apply_filter, run_filter
 from .mentions import Mention, find_mentions, group_by_kind
@@ -38,6 +44,7 @@ __all__ = [
     "Transcript", "as_text", "needle_recovery", "recovered",
     "transcribe", "transcripts_for",
     "Candidate", "propose", "to_item",
+    "GainEdit", "apply_gain_edits", "construct_p3", "measure_contrast",
     "SegmentFeatures", "segment_features",
     "GATE", "LeakReport", "apply_filter", "run_filter",
     "Mention", "find_mentions", "group_by_kind",

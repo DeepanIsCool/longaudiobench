@@ -135,8 +135,8 @@ def script():
 
 class TestBuildScript:
     def test_band_is_the_largest_that_fits_and_runs(self, script):
-        assert script.band_for(1900) == 600     # capped: 1800 does not run
-        assert script.band_for(700) == 600
+        assert script.band_for(1900) == 300     # capped: only 300 runs roster-wide
+        assert script.band_for(700) == 300
         assert script.band_for(100) == 300      # floor: shortest band
 
     def test_category_shares_match_the_paper_plan(self, script):
@@ -289,11 +289,12 @@ class TestL3FailureReason:
 
 class TestBandCap:
     def test_bands_are_capped_to_what_a_t4_can_run(self, script):
-        """At 1800 s every model errors at L3 - quadratic attention over ~45k
-        audio tokens. A band nobody can run measures nothing."""
-        assert script.MAX_RUNNABLE_BAND == 600
-        assert script.band_for(3600) == 600
-        assert script.band_for(700) == 600
+        """Measured, not guessed. At 1800 s every model errors at L3; at 600 s
+        only Aero (1.5B) completes a ladder, while MOSS-4B, Phi-4 and Voxtral
+        still error on nearly every L3 cell. The wall tracks parameter count."""
+        assert script.MAX_RUNNABLE_BAND == 300
+        assert script.band_for(3600) == 300
+        assert script.band_for(700) == 300
         assert script.band_for(400) == 300
 
     def test_the_cap_is_overridable_for_bigger_hardware(self, script):
