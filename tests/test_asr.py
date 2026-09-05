@@ -164,8 +164,13 @@ class TestGenerationHead:
 
         from undertone.adapters import audio_flamingo
 
+        # Check the search tuple itself, not the prose above it - the comment
+        # explaining the bug also contains the word "AutoModel".
         src = inspect.getsource(audio_flamingo.AudioFlamingoNext.load)
-        assert src.index("MusicFlamingoForConditionalGeneration") < src.index("AutoModel")
+        tuple_src = src[src.index("for name in ("):src.index("):", src.index("for name in ("))]
+        names = [n.strip().strip('",') for n in tuple_src.split("\n") if '"' in n]
+        assert names[0] == "MusicFlamingoForConditionalGeneration", names
+        assert names[-1] == "AutoModel", names
 
     def test_a_model_without_generate_is_rejected_at_load(self):
         import inspect
