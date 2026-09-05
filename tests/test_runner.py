@@ -245,3 +245,42 @@ class TestRowSchema:
                       "letter_chosen", "scorer", "correct", "latency_ms"):
             assert field in row, field
         assert json.dumps(row)          # must round-trip
+
+
+class TestResumeAcrossPacks:
+    def test_rows_from_another_pack_are_not_counted_as_done(self, tmp_path):
+        """Updating the pack and re-running must not skip cells scored against
+        the old audio. The same class of failure already cost a full sweep
+        through the dataset path; this closes the resume path."""
+        path = tmp_path / "r.jsonl"
+        with path.open("w") as fh:
+            fh.write(json.dumps({"item_id": "it_000", "condition": "L1",
+                                 "error": None, "pack_fingerprint": "OLD"}) + "\n")
+        assert runner.completed_keys(path, "NEW") == set()
+        assert runner.completed_keys(path, "OLD") == {"it_000|L1"}
+
+    def test_rows_without_a_fingerprint_still_resume(self, tmp_path):
+        path = tmp_path / "r.jsonl"
+        with path.open("w") as fh:
+            fh.write(json.dumps({"item_id": "it_000", "condition": "L1",
+                                 "error": None}) + "\n")
+        assert runner.completed_keys(path, "NEW") == {"it_000|L1"}
+
+    def test_the_fingerprint_reaches_every_row(self, tmp_path):
+        from undertone.items import ItemPack
+
+        pack = make_pack(2)
+        pack.meta["fingerprint"] = "abc123"
+        out = runner.run_model(StubAdapter(), pack, tmp_path / "r.jsonl",
+                               conditions=["L1"], progress=False)
+        assert {r["pack_fingerprint"] for r in runner.load_rows(out)} == {"abc123"}
+
+
+class TestAudioCacheStaleness:
+    def test_cache_key_includes_file_identity(self, tmp_path):
+        """A dataset swapped under a running session must not be served from
+        cache as if nothing changed."""
+        import inspect
+
+        src = inspect.getsource(runner._AudioCache.get)
+        assert "st_size" in src and "st_mtime" in src

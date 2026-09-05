@@ -14,6 +14,7 @@ rows carry ``truncated: true`` and are excluded from the accuracy table.
 from __future__ import annotations
 
 import json
+import os
 import time
 import traceback
 from collections.abc import Iterable, Sequence
@@ -33,7 +34,15 @@ def _key(item_id: str, condition: str) -> str:
     return f"{item_id}|{condition}"
 
 
-def completed_keys(path: str | Path) -> set[str]:
+def completed_keys(path: str | Path, fingerprint: str | None = None) -> set[str]:
+    """Cells already done, for resume.
+
+    Rows from a *different* item pack are never counted as done. Without that
+    check, updating the pack and re-running would skip cells that were scored
+    against the old audio and silently produce a table mixing two packs - the
+    same class of failure that already cost a full sweep, arriving through the
+    resume path instead of the dataset path.
+    """
     path = Path(path)
     if not path.exists():
         return set()
@@ -47,8 +56,11 @@ def completed_keys(path: str | Path) -> set[str]:
                 row = json.loads(line)
             except json.JSONDecodeError:
                 continue  # a half-written final line from a killed session
-            if row.get("error") is None and "item_id" in row:
-                done.add(_key(row["item_id"], row["condition"]))
+            if row.get("error") is not None or "item_id" not in row:
+                continue
+            if fingerprint and row.get("pack_fingerprint") not in (None, fingerprint):
+                continue
+            done.add(_key(row["item_id"], row["condition"]))
     return done
 
 
@@ -68,7 +80,15 @@ class _AudioCache:
         self._store: dict[tuple, Any] = {}
 
     def get(self, path: str, start: float, end: float):
-        key = (path, round(start, 3), round(end, 3))
+        # Keyed on size and mtime as well as path: a dataset swapped underneath
+        # a running session would otherwise be served from cache as if nothing
+        # had changed.
+        try:
+            stat = os.stat(path)
+            stamp = (stat.st_size, int(stat.st_mtime))
+        except OSError:
+            stamp = None
+        key = (path, stamp, round(start, 3), round(end, 3))
         if key not in self._store:
             if len(self._store) >= self.max_entries:
                 self._store.pop(next(iter(self._store)))
@@ -94,12 +114,12 @@ def run_model(
     conditions = list(conditions)
     # Stamped on every row: a sweep against a stale pack is otherwise
     # indistinguishable from a fresh one.
-    fingerprint = getattr(pack, "meta", {}).get("fingerprint") if hasattr(pack, "meta") else None
+    fingerprint = pack.meta.get("fingerprint") if hasattr(pack, "meta") else None
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     audio_root = Path(audio_root)
 
-    done = completed_keys(out_path)
+    done = completed_keys(out_path, fingerprint)
     todo = [(it, c) for it in items for c in conditions if _key(it.item_id, c) not in done]
     if progress:
         print(f"[{adapter.key}] {len(todo)} cells to run, {len(done)} already done")
