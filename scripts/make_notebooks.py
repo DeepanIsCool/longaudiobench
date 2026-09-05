@@ -112,9 +112,11 @@ META = {
     "aero_1_audio": dict(
         n=16, params="~1.5B + encoder", vram="~4 GB", gpu="1xT4",
         doc="https://huggingface.co/lmms-lab/Aero-1-Audio",
-        # Its remote code imports Qwen2AudioFlashAttention2, removed in later
-        # 4.5x. The card itself pins a 4.51.3 preview build.
-        pip=["transformers==4.51.3", "accelerate>=1.0.0", "librosa>=0.10.2",
+        # Aero needs a narrow window. Its remote code imports
+        # Qwen2AudioFlashAttention2, gone by 4.57.1, AND transformers.video_utils,
+        # absent in 4.51.3 - so it is pinned too new and too old respectively.
+        # 4.52.4 is the overlap: video_utils exists, the attention class survives.
+        pip=["transformers==4.52.4", "accelerate>=1.0.0", "librosa>=0.10.2",
              "soundfile>=0.12.1"],
         facts=[
             "Cheapest full-ladder run in the roster: ~4 GB leaves real headroom on one T4.",
