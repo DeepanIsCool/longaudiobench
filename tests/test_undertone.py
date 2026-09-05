@@ -394,3 +394,54 @@ class TestGenerationBudget:
 
         full = "<think>\nThe quiet one said five.\n</think>\nB"
         assert scoring.parse_free_letter(full, strip_reasoning=True) == "B"
+
+
+class TestProcessorAudioVerification:
+    def _batch(self, **keys):
+        return dict(input_ids=[[1, 2]], **keys)
+
+    def test_a_processor_that_drops_the_audio_is_a_failure(self):
+        """Aero accepted `audio=` through **kwargs and discarded it, then
+        returned identical logits for different clips."""
+        import numpy as np
+        import pytest
+
+        from undertone.adapters.base import call_processor
+
+        def swallowing(text=None, sampling_rate=None, return_tensors=None, **kw):
+            return {"input_ids": [[1, 2]]}      # no audio features
+
+        with pytest.raises(TypeError, match="never ingested the audio"):
+            call_processor(swallowing, "q", np.zeros(16), 16000)
+
+    def test_a_processor_that_encodes_audio_succeeds(self):
+        import numpy as np
+
+        from undertone.adapters.base import call_processor
+
+        def good(text=None, sampling_rate=None, return_tensors=None, **kw):
+            assert "audios" in kw or "audio" in kw
+            return {"input_ids": [[1, 2]], "input_features": [[0.0]]}
+
+        assert "input_features" in call_processor(good, "q", np.zeros(16), 16000)
+
+    def test_named_kwarg_is_not_second_guessed(self):
+        import numpy as np
+
+        from undertone.adapters.base import call_processor
+
+        seen = []
+
+        def picky(text=None, sampling_rate=None, return_tensors=None, **kw):
+            seen.append(sorted(kw))
+            return {"input_ids": [[1]], "audio_data": [[0.0]]}
+
+        call_processor(picky, "q", np.zeros(16), 16000, audio_kwarg="audios")
+        assert seen == [["audios"]]
+
+    def test_aero_names_its_kwarg(self):
+        import inspect
+
+        from undertone.adapters import aero
+
+        assert 'audio_kwarg="audios"' in inspect.getsource(aero.Aero1Audio.build_inputs)

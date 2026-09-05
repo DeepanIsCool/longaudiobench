@@ -66,7 +66,10 @@ class Aero1Audio(ModelAdapter):
                         {"type": "text", "text": prompt}],
         }]
         text = self.processor.apply_chat_template(messages, add_generation_prompt=True)
-        inputs = call_processor(self.processor, text, audio, sr)
+        # Named explicitly: this processor takes **kwargs, so `audio=` is
+        # accepted and silently dropped, which is how it returned identical
+        # logits for different clips.
+        inputs = call_processor(self.processor, text, audio, sr, audio_kwarg="audios")
         return move_to_device(
             dict(inputs), primary_device(self.model), self.cast_dtype(), self.audio_float_keys
         )

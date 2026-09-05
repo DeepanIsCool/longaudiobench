@@ -333,21 +333,50 @@ def list_controls() -> list[str]:
 # processor call shims
 # --------------------------------------------------------------------------
 
-def call_processor(processor, text: str, audio: np.ndarray, sr: int = SAMPLE_RATE, **kw):
-    """Call a processor whose audio kwarg name varies across transformers versions.
+def call_processor(processor, text: str, audio: np.ndarray, sr: int = SAMPLE_RATE,
+                   audio_kwarg: str | None = None, **kw):
+    """Call a processor whose audio kwarg name varies, and verify it landed.
 
-    ``audios=`` was renamed to ``audio=`` mid-4.5x and several of these models
-    ship pinned to different sides of that change.  Try both rather than pin the
-    whole notebook to one transformers release.
+    ``audios=`` was renamed to ``audio=`` mid-4.5x, so both names are in play
+    across the roster. Trying one then the other is not enough: a processor with
+    ``**kwargs`` *accepts* the wrong name and silently drops the audio. Aero did
+    exactly that -- it loaded, produced a valid prompt, and returned identical
+    logits for two different clips, which would have yielded a full table of
+    numbers measuring nothing but a text prior.
+
+    So the result is checked for an audio feature tensor, and a call that
+    produced none is treated as a failure rather than a success.
     """
+    names = [audio_kwarg] if audio_kwarg else ["audio", "audios"]
     last: Exception | None = None
-    for key in ("audio", "audios"):
+    for key in names:
         try:
-            return processor(text=text, **{key: [audio]}, sampling_rate=sr,
-                             return_tensors="pt", **kw)
-        except TypeError as exc:  # wrong kwarg name for this version
+            out = processor(text=text, **{key: [audio]}, sampling_rate=sr,
+                            return_tensors="pt", **kw)
+        except TypeError as exc:      # wrong kwarg name for this version
             last = exc
-    raise TypeError(f"processor accepted neither audio= nor audios=: {last}")
+            continue
+        if _has_audio_features(out):
+            return out
+        last = ValueError(
+            f"processor accepted {key}= but produced no audio features")
+    raise TypeError(
+        f"processor never ingested the audio (tried {names}): {last}")
+
+
+AUDIO_FEATURE_KEYS = (
+    "input_features", "audio_data", "input_audio_embeds", "audio_values",
+    "input_audio_features", "audio_input_features", "audio_embeds",
+)
+
+
+def _has_audio_features(batch) -> bool:
+    """Did the processor actually encode audio, or just the text?"""
+    try:
+        keys = set(batch.keys())
+    except AttributeError:
+        return False
+    return any(k in keys for k in AUDIO_FEATURE_KEYS)
 
 
 def as_temp_wav(audio: np.ndarray, sr: int = SAMPLE_RATE, tmpdir: str | None = None) -> str:
