@@ -177,6 +177,10 @@ class MossAudio4BThinking(_MossAudio):
 class MossAudio8BInstruct(_MossAudio):
     key = "moss_audio_8b_instruct"
     model_id = "OpenMOSS-Team/MOSS-Audio-8B-Instruct"
+    # 9.05B, ~18 GB fp16: does not fit one T4, and MOSS's masked_scatter_ needs
+    # source and target co-resident, so a two-GPU split fails the way the 4B did.
+    # Overflow to CPU keeps every GPU tensor on cuda:0.
+    single_gpu_with_cpu_overflow = True
     primary = "logits"
     notes = "9.05B, ~18GB fp16 -> sharded over 2xT4. mel_dtype forced to fp16."
 
@@ -185,6 +189,10 @@ class MossAudio8BInstruct(_MossAudio):
 class MossAudio8BThinking(_MossAudio):
     key = "moss_audio_8b_thinking"
     model_id = "OpenMOSS-Team/MOSS-Audio-8B-Thinking"
+    # 9.05B, ~18 GB fp16: does not fit one T4, and MOSS's masked_scatter_ needs
+    # source and target co-resident, so a two-GPU split fails the way the 4B did.
+    # Overflow to CPU keeps every GPU tensor on cuda:0.
+    single_gpu_with_cpu_overflow = True
     primary = "freegen"
     strip_reasoning = True
     generation_budget = 1024

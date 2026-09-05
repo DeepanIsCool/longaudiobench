@@ -161,3 +161,24 @@ class TestGemmaDevicePlacement:
         a._hardware = env.Hardware("cuda", "float16", "auto", "2x T4", 31.0, False)
         kw = a.load_kwargs()
         assert set(kw["max_memory"]) == {0, "cpu"}
+
+
+class TestMoss8BDevicePlacement:
+    def test_8b_overflows_to_cpu_like_gemma_e4b(self):
+        """18 GB will not fit a T4, and masked_scatter_ breaks across two."""
+        from undertone.adapters.base import _REGISTRY
+
+        for key in ("moss_audio_8b_instruct", "moss_audio_8b_thinking"):
+            cls = _REGISTRY[key]
+            assert cls.single_gpu_with_cpu_overflow, key
+            assert not cls.prefers_single_device, key
+
+    def test_every_model_over_15gb_avoids_a_two_gpu_split(self):
+        """The device-mismatch class of bug hit MOSS-4B, Gemma-E2B and
+        Gemma-E4B in turn; models that cannot fit one card must say how."""
+        from undertone.adapters.base import _REGISTRY
+
+        for key in ("moss_audio_8b_instruct", "moss_audio_8b_thinking",
+                    "gemma3n_e4b"):
+            cls = _REGISTRY[key]
+            assert cls.single_gpu_with_cpu_overflow or cls.prefers_single_device, key
