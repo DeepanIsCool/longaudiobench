@@ -147,6 +147,11 @@ class ModelAdapter(ABC):
     # cuda:0". If it fits on one device, put it on one device.
     prefers_single_device: bool = False
 
+    # For a model that does NOT fit one GPU but still breaks when split across
+    # two: keep every GPU tensor on cuda:0 and let the overflow go to CPU.
+    # Slower than a two-GPU split, but it runs, which a device mismatch does not.
+    single_gpu_with_cpu_overflow: bool = False
+
     # How many tokens generation gets. Eight is plenty for a model that answers
     # with a letter, and nowhere near enough for one that reasons first: the
     # Thinking variants emitted "<think>\nFor this question, I need" and were cut
@@ -184,9 +189,13 @@ class ModelAdapter(ABC):
 
         kwargs = {"torch_dtype": torch_dtype(self.hardware), **extra}
         if self.hardware.device_map:
-            kwargs["device_map"] = ("cuda:0" if (self.prefers_single_device
-                                                 and self.hardware.backend == "cuda")
-                                    else self.hardware.device_map)
+            if self.prefers_single_device and self.hardware.backend == "cuda":
+                kwargs["device_map"] = "cuda:0"
+            elif self.single_gpu_with_cpu_overflow and self.hardware.backend == "cuda":
+                kwargs["device_map"] = "auto"
+                kwargs["max_memory"] = {0: "14GiB", "cpu": "24GiB"}
+            else:
+                kwargs["device_map"] = self.hardware.device_map
         return kwargs
 
     def place(self, model):

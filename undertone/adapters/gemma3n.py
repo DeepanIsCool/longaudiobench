@@ -66,6 +66,9 @@ class _Gemma3n(ModelAdapter):
 class Gemma3nE2B(_Gemma3n):
     key = "gemma3n_e2b"
     model_id = "google/gemma-3n-E2B-it"
+    # 5.44B raw, ~11 GB fp16 - fits one T4. Splitting it across two produced
+    # "found at least two devices, cuda:0 and cuda:1" at inference.
+    prefers_single_device = True
     notes = "Gated. 30 s encoder cap (~6.25 audio tokens/s). 5.44B raw params."
 
 
@@ -73,4 +76,8 @@ class Gemma3nE2B(_Gemma3n):
 class Gemma3nE4B(_Gemma3n):
     key = "gemma3n_e4b"
     model_id = "google/gemma-3n-E4B-it"
+    # 7.85B raw, ~16 GB fp16 - does not fit a 15.6 GB T4, but splitting across
+    # two GPUs hits the same device mismatch as E2B. Overflow to CPU instead:
+    # slower, and it runs.
+    single_gpu_with_cpu_overflow = True
     notes = "Gated. 30 s encoder cap. 7.85B raw params -> sharded over 2xT4."

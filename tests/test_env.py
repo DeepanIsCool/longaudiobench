@@ -136,3 +136,28 @@ class TestSingleDevicePreference:
         a = get_adapter("moss_audio_4b_instruct")
         a._hardware = env.Hardware("mps", "float16", None, "Apple MPS", 8.0, False)
         assert "device_map" not in a.load_kwargs()
+
+
+class TestGemmaDevicePlacement:
+    def test_e2b_is_pinned_to_one_gpu(self):
+        """~11 GB fits a T4; splitting it produced a cuda:0/cuda:1 mismatch."""
+        from undertone.adapters.base import _REGISTRY
+
+        assert _REGISTRY["gemma3n_e2b"].prefers_single_device
+
+    def test_e4b_overflows_to_cpu_rather_than_a_second_gpu(self):
+        """~16 GB does not fit one T4, and two GPUs break the same way."""
+        from undertone.adapters.base import _REGISTRY
+
+        cls = _REGISTRY["gemma3n_e4b"]
+        assert cls.single_gpu_with_cpu_overflow
+        assert not cls.prefers_single_device
+
+    def test_cpu_overflow_keeps_gpu_tensors_on_one_device(self):
+        pytest.importorskip("torch")
+        from undertone.adapters.base import get_adapter
+
+        a = get_adapter("gemma3n_e4b")
+        a._hardware = env.Hardware("cuda", "float16", "auto", "2x T4", 31.0, False)
+        kw = a.load_kwargs()
+        assert set(kw["max_memory"]) == {0, "cpu"}
