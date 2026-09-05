@@ -167,6 +167,9 @@ class MossAudio4BThinking(_MossAudio):
     primary = "freegen"
     prefers_single_device = True
     strip_reasoning = True
+    # Room to finish reasoning and still emit the letter. At 8 tokens the model
+    # was cut off mid-<think> and every cell came back unparseable.
+    generation_budget = 1024
     notes = "Thinking variant: first token is a thought, so free-gen is primary."
 
 
