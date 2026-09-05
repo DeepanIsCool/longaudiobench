@@ -243,3 +243,26 @@ class TestAttentionBackend:
 
         src = inspect.getsource(env.prefer_memory_efficient_attention)
         assert "enable_flash_sdp(False)" in src
+
+
+class TestNoDuplicateAttnKwarg:
+    def test_no_adapter_passes_attn_implementation_explicitly(self):
+        """base.load_kwargs supplies it; passing it in the from_pretrained call
+        too is a duplicate keyword and the load fails outright - which is how
+        the attention fix broke every adapter that had set it by hand."""
+        import pathlib
+        import re
+
+        for f in pathlib.Path("undertone/adapters").glob("*.py"):
+            if f.name == "base.py":
+                continue
+            src = f.read_text()
+            for m in re.finditer(r"from_pretrained\([^)]*\)", src, re.S):
+                call = m.group(0)
+                if "load_kwargs()" not in call:
+                    continue
+                # Exactly the kwarg base supplies. Phi-4's remote code takes
+                # `_attn_implementation`, a different name, and it opts out of
+                # the base one by setting attn_implementation = None.
+                assert not re.search(r"(?<!_)\battn_implementation\s*=", call), \
+                    f"{f.name}: {call[:80]}"

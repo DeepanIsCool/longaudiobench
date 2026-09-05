@@ -48,7 +48,7 @@ class Aero1Audio(ModelAdapter):
             try:
                 self.processor = AutoProcessor.from_pretrained(repo, trust_remote_code=True)
                 self.model = self.place(AutoModelForCausalLM.from_pretrained(
-                    repo, attn_implementation="sdpa", trust_remote_code=True,
+                    repo, trust_remote_code=True,
                     **self.load_kwargs()))
                 self.model_id = repo
                 self.tokenizer = self.processor.tokenizer

@@ -53,7 +53,7 @@ class Qwen2Audio7B(ModelAdapter):
         # device_map="auto" only where accelerate can shard -- 16.8 GB does not
         # fit one T4. flash-attn-2 needs sm80+, so sdpa.
         self.model = self.place(Qwen2AudioForConditionalGeneration.from_pretrained(
-            self.model_id, attn_implementation="sdpa", **self.load_kwargs()))
+            self.model_id, **self.load_kwargs()))
 
     def build_inputs(self, audio: np.ndarray, prompt: str, sr: int = SAMPLE_RATE) -> dict:
         import torch
@@ -92,7 +92,7 @@ class _Qwen25Omni(ModelAdapter):
         if thinker_cls is not None:
             try:
                 self.model = self.place(thinker_cls.from_pretrained(
-                    self.model_id, attn_implementation="sdpa", **self.load_kwargs()))
+                    self.model_id, **self.load_kwargs()))
                 self.loaded_via = "Thinker"
                 return
             except Exception:  # noqa: BLE001 - fall back to the full model
@@ -101,7 +101,7 @@ class _Qwen25Omni(ModelAdapter):
         from transformers import Qwen2_5OmniForConditionalGeneration
 
         self.model = self.place(Qwen2_5OmniForConditionalGeneration.from_pretrained(
-            self.model_id, attn_implementation="sdpa", **self.load_kwargs()))
+            self.model_id, **self.load_kwargs()))
         self.loaded_via = "full"
         if hasattr(self.model, "disable_talker"):
             self.model.disable_talker()
