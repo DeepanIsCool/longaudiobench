@@ -537,3 +537,19 @@ class TestWindowing:
         rec = toy_recording(segs, duration=600.0)
         assert len(rec.windows(600)) == 1
         assert rec.windows(1200) == []
+
+
+class TestWindowRequiresRealDuration:
+    def test_a_zero_duration_recording_yields_nothing(self):
+        """The failure mode that produced '0 x 600s windows' for 60 meetings:
+        the Recording carried duration 0.0, so the loop condition was never
+        true and every window was silently skipped."""
+        segs = [(i * 10.0, i * 10.0 + 8.0, "A", f"turn {i} here") for i in range(240)]
+        rec = toy_recording(segs, duration=0.0)
+        assert rec.windows(600) == []
+
+    def test_setting_the_real_duration_recovers_them(self):
+        segs = [(i * 10.0, i * 10.0 + 8.0, "A", f"turn {i} here") for i in range(240)]
+        rec = toy_recording(segs, duration=0.0)
+        rec.duration = 2400.0
+        assert len(rec.windows(600)) == 4

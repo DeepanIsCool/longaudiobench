@@ -195,6 +195,7 @@ def main() -> int:
     # The leak filter's gold tier needs these, and regenerating them later would
     # mean re-parsing every annotation file.
     gold_transcripts: dict[str, str] = {}
+    total_windows = 0
 
     for recording, source_path in collect_recordings(
             args.langs, args.meetings, args.per_lang, args.audio_cache):
@@ -205,11 +206,18 @@ def main() -> int:
                   f"{BANDS[0]}s floor, skipping")
             continue
 
+        # collect_recordings builds AMI entries with duration 0.0 and leaves the
+        # real value to be measured here. windows() needs it: at 0.0 the loop
+        # condition start + band <= duration is never true and every meeting
+        # silently yields no windows.
+        recording.duration = duration
+
         # Load the whole recording, not just the first band: every window of it
         # is a haystack.
         audio, _ = librosa.load(source_path, sr=SAMPLE_RATE, mono=True)
 
         harvested = harvest_recording(recording, audio, band, with_f0=not args.no_f0)
+        total_windows += len(harvested)
         n = sum(len(items) for _, items in harvested)
         print(f"{recording.recording_id} [{recording.lang}]: {duration / 60:.0f} min "
               f"-> {len(harvested)} x {band}s windows -> {n} proposals")
@@ -227,7 +235,12 @@ def main() -> int:
             expressible[key] = sources.available_categories(window)
 
     if not proposals:
-        print("\nno proposals. Widen --meetings/--per-lang, or drop --no-f0 for P3.")
+        if total_windows == 0:
+            print("\nZERO windows from every recording. That is a bug, not a yield "
+                  "problem: check that each Recording carries its real duration "
+                  "before windows() is called.")
+        else:
+            print("\nno proposals. Widen --meetings/--per-lang, or drop --no-f0 for P3.")
         return 1
 
     primary = balance(proposals, args.target, rng)
