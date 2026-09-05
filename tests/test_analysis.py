@@ -134,8 +134,8 @@ def script():
 
 
 class TestBuildScript:
-    def test_band_is_the_largest_that_fits(self, script):
-        assert script.band_for(1900) == 1800
+    def test_band_is_the_largest_that_fits_and_runs(self, script):
+        assert script.band_for(1900) == 600     # capped: 1800 does not run
         assert script.band_for(700) == 600
         assert script.band_for(100) == 300      # floor: shortest band
 
