@@ -166,9 +166,12 @@ class TestGenerationHead:
 
         # Check the search tuple itself, not the prose above it - the comment
         # explaining the bug also contains the word "AutoModel".
+        import re
+
         src = inspect.getsource(audio_flamingo.AudioFlamingoNext.load)
-        tuple_src = src[src.index("for name in ("):src.index("):", src.index("for name in ("))]
-        names = [n.strip().strip('",') for n in tuple_src.split("\n") if '"' in n]
+        start = src.index("for name in (")
+        tuple_src = src[start:src.index("):", start)]
+        names = re.findall(r'"([A-Za-z]+)"', tuple_src)
         assert names[0] == "MusicFlamingoForConditionalGeneration", names
         assert names[-1] == "AutoModel", names
 
