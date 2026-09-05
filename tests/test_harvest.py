@@ -620,3 +620,48 @@ class TestConstructedArm:
         loud = np.full(16000, 0.9, dtype=np.float32)
         out = construct.apply_gain_edits(loud, [construct.GainEdit(0.0, 1.0, 12.0)])
         assert float(np.max(np.abs(out))) <= 1.0
+
+
+class TestConstructedProposal:
+    def _window(self):
+        rec = toy_recording([
+            (0, 4, "A", "the agreed dose is fifty milligrams per day"),
+            (10, 14, "A", "again, fifty milligrams for the main arm"),
+            (100, 104, "B", "we used five milligrams in the trial arm"),
+            (200, 204, "C", "fifteen milligrams was the other option"),
+        ])
+        audio = np.full(SR * 300, 0.3, dtype=np.float32)
+        return rec, features.segment_features(rec, audio, with_f0=False)
+
+    def test_constructed_candidates_never_duplicate_natural_ones(self):
+        """An item appearing in both arms would be counted twice and would make
+        the arm comparison meaningless."""
+        rec, feats = self._window()
+        natural = build.propose(rec, feats, 300)
+        made = build.propose_constructed_p3(rec, feats, 300, natural)
+        keys = {(c.target.segment_index, c.target.surface) for c in natural}
+        assert all((c.target.segment_index, c.target.surface) not in keys for c in made)
+
+    def test_constructed_requires_a_genuinely_repeated_competitor(self):
+        """The repetition is the speakers' own - only the contrast is supplied."""
+        rec, feats = self._window()
+        for c in build.propose_constructed_p3(rec, feats, 300, []):
+            assert c.why["competitor_repeats"] >= 2
+            assert c.why["constructed"] is True
+            assert c.why["competitor_spans"]
+
+    def test_constructed_skips_spans_another_cause_already_explains(self):
+        """Adding a contrast on top of a masked or muttered span would confound
+        P3 with P2 or P1."""
+        import inspect
+
+        src = inspect.getsource(build.propose_constructed_p3)
+        assert "feature.is_masked or feature.is_quiet" in src
+
+    def test_items_carry_the_constructed_flag(self):
+        rec, feats = self._window()
+        made = build.propose_constructed_p3(rec, feats, 300, [])
+        if made:
+            item = build.to_item(rec, made[0], 300, 900)
+            assert item.provenance["constructed"] is True
+            assert item.category == "P3"

@@ -257,6 +257,62 @@ def propose(recording: Recording, features: list[SegmentFeatures],
     return out
 
 
+def propose_constructed_p3(recording: Recording, features: list[SegmentFeatures],
+                           band: int, existing: list[Candidate]) -> list[Candidate]:
+    """Candidates for the constructed P3 arm.
+
+    Natural P3 needs a conjunction - flat aside AND a loud, repeated competitor -
+    that AMI supplies about ten times across 47 windows. These are the near
+    misses: a target with a genuinely repeated competitor, which failed the
+    natural gate only because the prominence contrast was not already there.
+    The gain envelope supplies the contrast; the words and the repetition are
+    the speakers' own.
+
+    Excludes anything already proposed, so an item never appears in both arms.
+    """
+    taken = {(c.target.segment_index, c.target.surface) for c in existing}
+    mentions: list[Mention] = []
+    for i, segment in enumerate(recording.segments):
+        mentions.extend(find_mentions(segment.text, recording.lang, i,
+                                      segment.start, segment.end))
+
+    out: list[Candidate] = []
+    for group in group_by_kind(mentions).values():
+        if len({m.value for m in group}) < MIN_DISTINCT_VALUES:
+            continue
+        for target in group:
+            if (target.segment_index, target.surface) in taken:
+                continue
+            if target.end > band or not target.context:
+                continue
+            feature = features[target.segment_index]
+            # Not already explained by another cause - constructing a contrast
+            # on top of a masked or muttered span would confound the categories.
+            if feature.is_masked or feature.is_quiet:
+                continue
+            competitors = [m for m in group if m.value != target.value]
+            repeats = max((_repetition_count(group, m.value) for m in competitors),
+                          default=0)
+            if repeats < 2 or _repetition_count(group, target.value) != 1:
+                continue
+            salience = _pick_salience(group, features, exclude={target.value})
+            if salience is None:
+                continue
+            recency = _pick_recency(group, exclude={target.value, salience.value})
+            if recency is None:
+                continue
+            if not context_is_clean(target.context, target, salience, recency):
+                continue
+            out.append(Candidate("P3", target, salience, recency, {
+                "constructed": True,
+                "competitor_repeats": repeats,
+                "competitor_spans": [(m.start, m.end) for m in group
+                                     if m.value == salience.value],
+                "why_constructed": "natural contrast absent; supplied by gain envelope",
+            }))
+    return out
+
+
 def to_item(recording: Recording, candidate: Candidate, band: int,
             index: int) -> MCQItem:
     lang = recording.lang
@@ -290,6 +346,7 @@ def to_item(recording: Recording, candidate: Candidate, band: int,
         provenance={
             "verified": False,           # nothing is a real item until you listen
             "leak_checked": False,
+            "constructed": bool(candidate.why.get("constructed")),
             "why": candidate.why,
             "quantity_kind": candidate.target.kind,
             # F2 is not just "B-choice exceeds chance" - the paper plan says it

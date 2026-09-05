@@ -19,7 +19,7 @@ from .asr import (
     transcribe,
     transcripts_for,
 )
-from .build import Candidate, propose, to_item
+from .build import Candidate, propose, propose_constructed_p3, to_item
 from .construct import (
     GainEdit,
     apply_gain_edits,
@@ -43,7 +43,7 @@ from .sources import (
 __all__ = [
     "Transcript", "as_text", "needle_recovery", "recovered",
     "transcribe", "transcripts_for",
-    "Candidate", "propose", "to_item",
+    "Candidate", "propose", "propose_constructed_p3", "to_item",
     "GainEdit", "apply_gain_edits", "construct_p3", "measure_contrast",
     "SegmentFeatures", "segment_features",
     "GATE", "LeakReport", "apply_filter", "run_filter",

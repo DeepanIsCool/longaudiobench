@@ -25,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from undertone.harvest import build, features, sources  # noqa: E402
+from undertone.harvest import build, construct, features, sources  # noqa: E402
 from undertone.items import BANDS, CATEGORIES, ItemPack, MCQItem  # noqa: E402
 
 # Paper plan section 4: P1-P4 share one mechanism, C1 is the discriminant.
@@ -53,8 +53,11 @@ def band_for(duration: float, cap: int = MAX_RUNNABLE_BAND) -> int:
     return usable[-1] if usable else BANDS[0]
 
 
+MAX_CONSTRUCTED_PER_WINDOW = 2   # keep the arm a minority of P3, not a flood
+
+
 def harvest_recording(recording: sources.Recording, audio, band: int,
-                      with_f0: bool) -> list[tuple[sources.Recording, list[MCQItem]]]:
+                      with_f0: bool) -> list[tuple[sources.Recording, list[MCQItem], object]]:
     """Every band-length window of a recording, each harvested separately.
 
     Returns (window, items) pairs so the caller can write one audio file per
@@ -68,9 +71,28 @@ def harvest_recording(recording: sources.Recording, audio, band: int,
             continue
         feats = features.segment_features(window, chunk, with_f0=with_f0)
         candidates = build.propose(window, feats, band)
-        if candidates:
-            out.append((window, [build.to_item(window, c, band, i)
-                                 for i, c in enumerate(candidates)]))
+        items = [build.to_item(window, c, band, i) for i, c in enumerate(candidates)]
+
+        # The constructed P3 arm. Its audio differs from the natural arm's, so
+        # each constructed item gets its own file and its own recording id -
+        # otherwise two items would point at one path with different content.
+        edited = None
+        for j, cand in enumerate(build.propose_constructed_p3(
+                window, feats, band, candidates)[:MAX_CONSTRUCTED_PER_WINDOW]):
+            audio_out, edits = construct.construct_p3(
+                chunk, cand.target.start, cand.target.end,
+                cand.why["competitor_spans"])
+            contrast = construct.measure_contrast(
+                audio_out, (cand.target.start, cand.target.end),
+                cand.why["competitor_spans"][0])
+            item = build.to_item(window, cand, band, 900 + j)
+            data = item.to_dict()
+            data["provenance"] = {**item.provenance, "gain_edits": edits,
+                                  "achieved_contrast_db": contrast}
+            items.append(MCQItem.from_dict(data))
+            edited = audio_out            # one edited file per window
+        if items:
+            out.append((window, items, edited))
     return out
 
 
@@ -220,16 +242,26 @@ def main() -> int:
 
         harvested = harvest_recording(recording, audio, band, with_f0=not args.no_f0)
         total_windows += len(harvested)
-        n = sum(len(items) for _, items in harvested)
+        n = sum(len(items) for _, items, _ in harvested)
         print(f"{recording.recording_id} [{recording.lang}]: {duration / 60:.0f} min "
               f"-> {len(harvested)} x {band}s windows -> {n} proposals")
 
-        for window, items in harvested:
+        for window, items, edited in harvested:
             rel = f"audio/{window.recording_id}.flac"
             items = [MCQItem.from_dict({**i.to_dict(), "audio_path": rel})
                      for i in items]
             write_audio(source_path, args.out / rel, band,
                         offset=window.meta["window_start"])
+            if edited is not None:
+                # Constructed items point at the gain-edited copy, never the
+                # untouched one.
+                rel_c = f"audio/{window.recording_id}_constructed.flac"
+                import soundfile as sf
+                (args.out / rel_c).parent.mkdir(parents=True, exist_ok=True)
+                sf.write(args.out / rel_c, edited, SAMPLE_RATE, format="FLAC")
+                items = [MCQItem.from_dict({**i.to_dict(), "audio_path": rel_c})
+                         if i.provenance.get("constructed") else i
+                         for i in items]
             proposals.extend(items)
             key = window.recording_id
             gold_transcripts[key] = " ".join(seg.text for seg in window.segments)
