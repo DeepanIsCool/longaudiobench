@@ -299,3 +299,19 @@ class TestBandCap:
 
     def test_the_cap_is_overridable_for_bigger_hardware(self, script):
         assert script.band_for(3600, cap=1800) == 1800
+
+
+class TestPackMixingGuard:
+    def test_two_packs_cannot_share_a_table(self):
+        """Seven models once re-ran a stale pack and reported byte-identical
+        numbers; nothing errored."""
+        rows = [row(pack_fingerprint="aaa"), row(pack_fingerprint="bbb")]
+        with pytest.raises(analysis.MixedHardware, match="different item packs"):
+            analysis.usable(rows)
+
+    def test_one_pack_is_fine(self):
+        rows = [row(pack_fingerprint="aaa"), row(pack_fingerprint="aaa")]
+        assert len(analysis.usable(rows)) == 2
+
+    def test_rows_without_a_fingerprint_are_not_blocked(self):
+        assert len(analysis.usable([row(), row()])) == 2

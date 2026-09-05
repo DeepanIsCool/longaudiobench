@@ -92,6 +92,9 @@ def run_model(
     """Score every (item, condition) cell and append rows to ``out_path``."""
     items = list(pack)
     conditions = list(conditions)
+    # Stamped on every row: a sweep against a stale pack is otherwise
+    # indistinguishable from a fresh one.
+    fingerprint = getattr(pack, "meta", {}).get("fingerprint") if hasattr(pack, "meta") else None
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     audio_root = Path(audio_root)
@@ -115,6 +118,7 @@ def run_model(
                 adapter, item, condition, seed, run_id, cache, audio_root,
                 also_generate, max_new_tokens,
             )
+            row["pack_fingerprint"] = fingerprint
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
             fh.flush()
 

@@ -44,6 +44,13 @@ def usable(rows: Sequence[dict], require_verified: bool = True,
     if require_verified:
         keep = [r for r in keep if r.get("verified", True)]
 
+    packs = {r.get("pack_fingerprint") for r in keep if r.get("pack_fingerprint")}
+    if len(packs) > 1:
+        raise MixedHardware(
+            f"rows came from {len(packs)} different item packs ({sorted(packs)}). "
+            "One of these sweeps ran against a stale dataset - re-run it before "
+            "comparing anything.")
+
     found = signatures(keep)
     if len(found) > 1 and not allow_mixed_hardware:
         by_signature = {

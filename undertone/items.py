@@ -109,10 +109,32 @@ class ItemPack:
     def __iter__(self) -> Iterator[MCQItem]:
         return iter(self.items)
 
+    @property
+    def fingerprint(self) -> str:
+        """Content hash of the pack, stamped onto every result row.
+
+        The pack builder writes to one place and the model notebooks read from
+        another, joined only by a manual dataset upload. Skip that upload and
+        every model runs happily against stale audio and reports plausible
+        numbers -- nothing errors, and it is only visible if you notice the
+        results are byte-identical to the previous round. This makes that
+        loud instead of silent.
+        """
+        import hashlib
+
+        h = hashlib.sha256()
+        for item in sorted(self.items, key=lambda i: i.item_id):
+            h.update(item.item_id.encode())
+            h.update(str(item.duration_band).encode())
+            h.update(item.options["correct"].encode())
+        return h.hexdigest()[:12]
+
     def save(self, path: str | Path) -> None:
         path = Path(path)
         with path.open("w", encoding="utf-8") as fh:
-            fh.write(json.dumps({"__meta__": self.meta}, ensure_ascii=False) + "\n")
+            meta = {**self.meta, "fingerprint": self.fingerprint,
+                    "n_items": len(self.items)}
+            fh.write(json.dumps({"__meta__": meta}, ensure_ascii=False) + "\n")
             for item in self.items:
                 fh.write(json.dumps(item.to_dict(), ensure_ascii=False) + "\n")
 

@@ -68,7 +68,9 @@ class TestItem:
         pack.save(path)
         back = ItemPack.load(path)
         assert len(back) == 2
-        assert back.meta == {"build": "test"}
+        # save() adds the fingerprint and item count to whatever meta it was given.
+        assert back.meta["build"] == "test"
+        assert back.meta["fingerprint"] == pack.fingerprint
         assert back.items[1].lang == "bn"
         assert back.items[0].options == pack.items[0].options
 
@@ -477,3 +479,35 @@ class TestLadderCostSampleGuard:
 
         out = scoring.ladder_costs({"L1": self._rows(5)})
         assert {"n_L1", "n_L2", "n_L3", "n_L4"} <= set(out)
+
+
+class TestPackFingerprint:
+    def _pack(self, n=3, band=300):
+        from undertone.items import ItemPack
+
+        return ItemPack([MCQItem(
+            item_id=f"it_{i}", recording_id="r0", lang="en", category="P3",
+            sector="meetings", audio_path="a.flac", duration_band=band,
+            needle_start=10.0, needle_end=14.0, question="q",
+            options={"correct": f"v{i}", "salience": "b", "recency": "c",
+                     "absent": "x"}) for i in range(n)])
+
+    def test_same_content_same_fingerprint(self):
+        assert self._pack().fingerprint == self._pack().fingerprint
+
+    def test_a_different_band_changes_it(self):
+        """The stale-pack failure that wasted a sweep: same items, 10-minute
+        bands instead of 5, and nothing anywhere noticed."""
+        assert self._pack(band=300).fingerprint != self._pack(band=600).fingerprint
+
+    def test_different_items_change_it(self):
+        assert self._pack(3).fingerprint != self._pack(4).fingerprint
+
+    def test_it_is_written_into_the_saved_pack(self, tmp_path):
+        from undertone.items import ItemPack
+
+        pack = self._pack()
+        pack.save(tmp_path / "p.jsonl")
+        back = ItemPack.load(tmp_path / "p.jsonl")
+        assert back.meta["fingerprint"] == pack.fingerprint
+        assert back.meta["n_items"] == 3
