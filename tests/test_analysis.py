@@ -262,3 +262,26 @@ class TestCostStatus:
     def test_no_l1_means_nothing_is_interpretable(self):
         status = analysis.cost_status({"L1": [], "L3": [row()]})
         assert "perception ceiling is unmeasured" in status
+
+
+class TestL3FailureReason:
+    def test_truncated_and_errored_are_different_findings(self):
+        """Truncated is architectural; OOM is this GPU. They must not merge."""
+        trunc = [row(condition="L3", truncated=True) for _ in range(4)]
+        assert analysis.l3_failure_reason(trunc)["reason"].startswith("architecture")
+
+        oom = [row(condition="L3", error="OutOfMemoryError: CUDA out of memory")
+               for _ in range(4)]
+        r = analysis.l3_failure_reason(oom)
+        assert r["reason"].startswith("hardware")
+        assert r["of_which_oom"] == 4
+
+    def test_counts_are_exact(self):
+        rows = ([row(condition="L3") for _ in range(3)]
+                + [row(condition="L3", truncated=True)]
+                + [row(condition="L3", error="OutOfMemoryError: x")])
+        r = analysis.l3_failure_reason(rows)
+        assert (r["n"], r["scored"], r["truncated"], r["errored"]) == (5, 3, 1, 1)
+
+    def test_empty_is_not_an_error(self):
+        assert analysis.l3_failure_reason([])["n"] == 0

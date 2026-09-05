@@ -80,10 +80,40 @@ def cost_status(by_condition: dict[str, Sequence[dict[str, Any]]],
                 "is interpretable")
     if not by_condition.get("L3"):
         cap = f" (ceiling {max_audio_s:.0f}s)" if max_audio_s else ""
-        return ("RetrievalCost undefined: every L3 cell exceeds this model's input "
-                f"limit{cap} and was truncated, so there is no L3 accuracy to "
-                "subtract")
+        return ("RetrievalCost undefined: no usable L3 rows. Either every L3 cell "
+                f"exceeded this model's input limit{cap} and was truncated, or "
+                "they errored -- pass the raw rows to l3_failure_reason() to tell "
+                "which, because they are different findings")
     return "ok"
+
+
+def l3_failure_reason(rows: Sequence[dict], model: str | None = None) -> dict[str, Any]:
+    """Truncated or errored? A results table must not conflate the two.
+
+    Truncated means the model's documented window is too small: an architectural
+    limit. Errored means it accepted the window and fell over -- on a 15 GB T4
+    that is quadratic attention over tens of thousands of audio tokens, a
+    *hardware* limit that a larger GPU would not hit. The first belongs in the
+    model's row; the second belongs in the paper's compute section.
+    """
+    scoped = [r for r in rows
+              if r["condition"] == "L3" and (model is None or r["model_key"] == model)]
+    if not scoped:
+        return {"n": 0}
+    errored = [r for r in scoped if r.get("error")]
+    oom = [r for r in errored if "OutOfMemory" in str(r.get("error", ""))]
+    return {
+        "n": len(scoped),
+        "truncated": sum(1 for r in scoped if r.get("truncated")),
+        "errored": len(errored),
+        "of_which_oom": len(oom),
+        "scored": sum(1 for r in scoped
+                      if not r.get("error") and not r.get("truncated")),
+        "reason": ("hardware: quadratic attention over the window exceeded GPU memory"
+                   if oom and len(oom) >= len(errored) / 2
+                   else "architecture: the window exceeds the model's input limit"
+                   if any(r.get("truncated") for r in scoped) else "mixed"),
+    }
 
 
 def table1_main(rows: Sequence[dict], condition: str = "L3",
