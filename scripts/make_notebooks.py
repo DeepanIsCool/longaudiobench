@@ -194,7 +194,10 @@ META = {
         # The repo has config.json and weights only - no modeling file - so
         # `musicflamingo` must be registered in transformers itself. 4.57.1 does
         # not have it; this is the one model that needs 5.x.
-        pip=["transformers>=5.0.0", "accelerate>=1.0.0", "librosa>=0.10.2",
+        # musicflamingo is registered from transformers 5.15 onward. ">=5.0.0"
+        # was a no-op: Kaggle's image already ships 5.0.0, so pip saw the
+        # constraint satisfied and never upgraded.
+        pip=["transformers>=5.15.1", "accelerate>=1.0.0", "librosa>=0.10.2",
              "soundfile>=0.12.1"],
         facts=[
             "Only model whose documented ceiling reaches our longest band exactly: the "

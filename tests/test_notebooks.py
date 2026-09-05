@@ -110,7 +110,7 @@ def test_models_needing_a_different_pin_get_one(notebooks):
     expected = {
         "phi4_multimodal": "transformers==4.48.2",      # version-sensitive remote code
         "aero_1_audio": "transformers==4.52.4",         # needs video_utils AND Qwen2AudioFlashAttention2
-        "audio_flamingo_next": "transformers>=5.0.0",   # musicflamingo not in 4.x
+        "audio_flamingo_next": "transformers>=5.15.1", # musicflamingo lands in 5.15
     }
     for key, pin in expected.items():
         name = next(n for n in notebooks if n.endswith(f"{key}.ipynb"))
@@ -167,3 +167,17 @@ def test_analysis_notebook_reports_truncation_separately(notebooks):
     assert "table4_truncation" in joined
     assert "sanity_checks" in joined
     assert "composite" not in joined.lower()
+
+
+def test_no_pin_is_a_no_op_against_the_kaggle_image(notebooks):
+    """Kaggle ships transformers 5.0.0. A ">=5.0.0" pin is satisfied on arrival
+    and pip never upgrades, which is how audio-flamingo-next ran on a release
+    that does not register musicflamingo."""
+    import re
+
+    for name, nb in notebooks.items():
+        for src in code_cells(nb):
+            for m in re.finditer(r'transformers>=(\d+)\.(\d+)', src):
+                major, minor = int(m.group(1)), int(m.group(2))
+                assert not (major == 5 and minor == 0), (
+                    f"{name}: transformers>=5.0 is a no-op on the Kaggle image")
