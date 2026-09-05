@@ -215,14 +215,34 @@ def salience_trap(rows: Sequence[dict[str, Any]]) -> float:
     return sum(1 for r in subset if r["role_chosen"] == "salience") / len(subset)
 
 
-def ladder_costs(by_condition: dict[str, Sequence[dict[str, Any]]]) -> dict[str, float]:
-    """RetrievalCost and LongContextCost, both relative to the L1 ceiling."""
-    l1 = accuracy(by_condition.get("L1", []))
-    out = {"acc_L1": l1}
-    for cond in ("L2", "L3", "L4"):
-        out[f"acc_{cond}"] = accuracy(by_condition.get(cond, []))
-    out["RetrievalCost"] = l1 - out["acc_L3"]
-    out["LongContextCost"] = l1 - out["acc_L4"]
+MIN_CELLS_FOR_A_COST = 10
+
+
+def ladder_costs(by_condition: dict[str, Sequence[dict[str, Any]]],
+                 min_cells: int = MIN_CELLS_FOR_A_COST) -> dict[str, float]:
+    """RetrievalCost and LongContextCost, both relative to the L1 ceiling.
+
+    A cost is withheld when either side rests on too few cells. Phi-4 reported
+    RetrievalCost 0.422 off an acc_L3 of 0.0 that survived on a handful of rows
+    after 162 errored -- arithmetically fine, and indistinguishable in a table
+    from Omni-3B's 0.396, which came from 188 scorable cells and no errors. The
+    per-condition n is returned so a reader can see which is which.
+    """
+    out: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    for cond in ("L1", "L2", "L3", "L4"):
+        rows = [r for r in by_condition.get(cond, []) if r.get("role_chosen") is not None]
+        counts[cond] = len(rows)
+        out[f"acc_{cond}"] = accuracy(rows)
+        out[f"n_{cond}"] = len(rows)
+
+    def cost(other: str) -> float:
+        if counts["L1"] < min_cells or counts[other] < min_cells:
+            return float("nan")
+        return out["acc_L1"] - out[f"acc_{other}"]
+
+    out["RetrievalCost"] = cost("L3")
+    out["LongContextCost"] = cost("L4")
     return out
 
 

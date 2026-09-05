@@ -445,3 +445,35 @@ class TestProcessorAudioVerification:
         from undertone.adapters import aero
 
         assert 'audio_kwarg="audios"' in inspect.getsource(aero.Aero1Audio.build_inputs)
+
+
+class TestLadderCostSampleGuard:
+    def _rows(self, n, role="correct", cond="L1"):
+        return [{"role_chosen": role, "correct_role": "correct", "is_null": False,
+                 "condition": cond, "recording_id": "r0"} for _ in range(n)]
+
+    def test_a_cost_from_a_handful_of_cells_is_withheld(self):
+        """Phi-4 reported 0.422 off an acc_L3 that survived on a few rows after
+        162 errored - indistinguishable in a table from a solid measurement."""
+        import math
+
+        from undertone import scoring
+
+        out = scoring.ladder_costs({"L1": self._rows(80),
+                                    "L3": self._rows(3, "salience", "L3")})
+        assert math.isnan(out["RetrievalCost"])
+        assert out["n_L3"] == 3
+
+    def test_a_well_sampled_cost_is_reported(self):
+        from undertone import scoring
+
+        out = scoring.ladder_costs({"L1": self._rows(80),
+                                    "L3": self._rows(40, "salience", "L3")})
+        assert out["RetrievalCost"] == 1.0
+        assert out["n_L1"] == 80 and out["n_L3"] == 40
+
+    def test_per_condition_n_is_always_reported(self):
+        from undertone import scoring
+
+        out = scoring.ladder_costs({"L1": self._rows(5)})
+        assert {"n_L1", "n_L2", "n_L3", "n_L4"} <= set(out)
