@@ -498,3 +498,42 @@ class TestYodasSegments:
 
         assert set(YODAS2_CONFIGS) == {"en", "hi", "bn"}
         assert all(YODAS2_CONFIGS[lang] for lang in YODAS2_CONFIGS)
+
+
+class TestWindowing:
+    def test_a_long_meeting_yields_several_haystacks(self):
+        """Taking only a prefix threw away three quarters of every meeting:
+        60 meetings at a 10-minute prefix produced fewer items than 25 did at
+        30 minutes."""
+        segs = [(i * 10.0, i * 10.0 + 8.0, "A" if i % 2 else "B", f"turn {i} of it")
+                for i in range(240)]                       # 40 minutes of speech
+        rec = toy_recording(segs, duration=2400.0)
+        windows = rec.windows(600)
+        assert len(windows) == 4
+        assert [w.meta["window_index"] for w in windows] == [0, 1, 2, 3]
+
+    def test_windows_do_not_overlap(self):
+        segs = [(i * 10.0, i * 10.0 + 8.0, "A", f"turn {i} here") for i in range(240)]
+        rec = toy_recording(segs, duration=2400.0)
+        seen = set()
+        for w in rec.windows(600):
+            for s in w.segments:
+                absolute = round(s.start + w.meta["window_start"], 2)
+                assert absolute not in seen, "a needle would appear in two haystacks"
+                seen.add(absolute)
+
+    def test_segment_times_are_relative_to_the_window(self):
+        segs = [(i * 10.0, i * 10.0 + 8.0, "A", f"turn {i} here") for i in range(240)]
+        w = toy_recording(segs, duration=2400.0).windows(600)[2]
+        assert all(0 <= s.start < 600 for s in w.segments)
+        assert w.meta["window_start"] == 1200.0
+
+    def test_a_sparse_window_is_dropped(self):
+        rec = toy_recording([(0, 4, "A", "only one turn")], duration=1200.0)
+        assert rec.windows(600) == []
+
+    def test_a_short_recording_yields_one_window_or_none(self):
+        segs = [(i * 10.0, i * 10.0 + 8.0, "A", f"turn {i} here") for i in range(50)]
+        rec = toy_recording(segs, duration=600.0)
+        assert len(rec.windows(600)) == 1
+        assert rec.windows(1200) == []

@@ -52,6 +52,41 @@ class Recording:
     def within(self, start: float, end: float) -> list[Segment]:
         return [s for s in self.segments if s.start < end and start < s.end]
 
+    def windows(self, band_seconds: int, stride: int | None = None) -> list["Recording"]:
+        """Split into consecutive band-length windows, each its own haystack.
+
+        Taking only a prefix throws away most of a long meeting: capping the
+        band at 10 minutes and calling band() once turned 60 meetings into fewer
+        items than 25 had produced at 30 minutes. A 40-minute meeting holds four
+        10-minute haystacks, and every one of them is as real as the first.
+
+        Windows are non-overlapping by default so no needle can appear twice.
+        """
+        stride = stride or band_seconds
+        out: list["Recording"] = []
+        start = 0.0
+        while start + band_seconds <= self.duration:
+            kept = [
+                Segment(s.start - start, s.end - start, s.speaker, s.text)
+                for s in self.segments
+                if s.start >= start and s.end <= start + band_seconds
+            ]
+            if len(kept) >= 20:      # too sparse to hold competing mentions
+                index = int(start // stride)
+                out.append(Recording(
+                    recording_id=f"{self.recording_id}_w{index}",
+                    audio_path=self.audio_path,
+                    lang=self.lang,
+                    sector=self.sector,
+                    duration=float(band_seconds),
+                    segments=kept,
+                    meta={**self.meta, "band": band_seconds,
+                          "window_index": index, "window_start": start,
+                          "source_recording": self.recording_id},
+                ))
+            start += stride
+        return out
+
     def band(self, band_seconds: int) -> "Recording":
         """The first ``band_seconds`` of this recording, segments clipped to fit.
 

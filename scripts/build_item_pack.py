@@ -52,14 +52,24 @@ def band_for(duration: float, cap: int = MAX_RUNNABLE_BAND) -> int:
 
 
 def harvest_recording(recording: sources.Recording, audio, band: int,
-                      with_f0: bool) -> list[MCQItem]:
-    banded = recording.band(band)
-    if not banded.segments:
-        return []
-    feats = features.segment_features(banded, audio[: band * SAMPLE_RATE],
-                                      with_f0=with_f0)
-    candidates = build.propose(banded, feats, band)
-    return [build.to_item(banded, c, band, i) for i, c in enumerate(candidates)]
+                      with_f0: bool) -> list[tuple[sources.Recording, list[MCQItem]]]:
+    """Every band-length window of a recording, each harvested separately.
+
+    Returns (window, items) pairs so the caller can write one audio file per
+    window. A 40-minute meeting is four 10-minute haystacks, not one.
+    """
+    out = []
+    for window in recording.windows(band):
+        offset = int(window.meta["window_start"] * SAMPLE_RATE)
+        chunk = audio[offset: offset + band * SAMPLE_RATE]
+        if len(chunk) < band * SAMPLE_RATE * 0.9:
+            continue
+        feats = features.segment_features(window, chunk, with_f0=with_f0)
+        candidates = build.propose(window, feats, band)
+        if candidates:
+            out.append((window, [build.to_item(window, c, band, i)
+                                 for i, c in enumerate(candidates)]))
+    return out
 
 
 def balance(items: list[MCQItem], target_total: int, rng: random.Random) -> list[MCQItem]:
@@ -106,12 +116,14 @@ def add_nulls(items: list[MCQItem], kinds_by_recording: dict[str, set[str]],
     return nulls
 
 
-def write_audio(path_in: str, path_out: Path, band: int) -> None:
+def write_audio(path_in: str, path_out: Path, band: int,
+               offset: float = 0.0) -> None:
     import librosa
     import soundfile as sf
 
     path_out.parent.mkdir(parents=True, exist_ok=True)
-    audio, _ = librosa.load(path_in, sr=SAMPLE_RATE, mono=True, duration=band)
+    audio, _ = librosa.load(path_in, sr=SAMPLE_RATE, mono=True,
+                            offset=offset, duration=band)
     sf.write(path_out, audio, SAMPLE_RATE, format="FLAC")
 
 
@@ -193,25 +205,26 @@ def main() -> int:
                   f"{BANDS[0]}s floor, skipping")
             continue
 
-        audio, _ = librosa.load(source_path, sr=SAMPLE_RATE, mono=True, duration=band)
-        rel = f"audio/{recording.recording_id}_b{band}.flac"
-        recording = sources.Recording(
-            recording_id=recording.recording_id, audio_path=rel, lang=recording.lang,
-            sector=recording.sector, duration=duration,
-            segments=recording.segments, meta=recording.meta)
+        # Load the whole recording, not just the first band: every window of it
+        # is a haystack.
+        audio, _ = librosa.load(source_path, sr=SAMPLE_RATE, mono=True)
 
-        items = harvest_recording(recording, audio, band, with_f0=not args.no_f0)
+        harvested = harvest_recording(recording, audio, band, with_f0=not args.no_f0)
+        n = sum(len(items) for _, items in harvested)
         print(f"{recording.recording_id} [{recording.lang}]: {duration / 60:.0f} min "
-              f"-> band {band}s -> {len(items)} proposals")
+              f"-> {len(harvested)} x {band}s windows -> {n} proposals")
 
-        if items:
-            write_audio(source_path, args.out / rel, band)
+        for window, items in harvested:
+            rel = f"audio/{window.recording_id}.flac"
+            items = [MCQItem.from_dict({**i.to_dict(), "audio_path": rel})
+                     for i in items]
+            write_audio(source_path, args.out / rel, band,
+                        offset=window.meta["window_start"])
             proposals.extend(items)
-            key = items[0].recording_id
-            gold_transcripts[key] = " ".join(
-                seg.text for seg in recording.segments if seg.end <= band)
+            key = window.recording_id
+            gold_transcripts[key] = " ".join(seg.text for seg in window.segments)
             kinds_by_recording[key] = {i.provenance["quantity_kind"] for i in items}
-            expressible[key] = sources.available_categories(recording)
+            expressible[key] = sources.available_categories(window)
 
     if not proposals:
         print("\nno proposals. Widen --meetings/--per-lang, or drop --no-f0 for P3.")
