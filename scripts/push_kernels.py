@@ -18,10 +18,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 ITEM_PACK_SLUG = "undertone-item-pack"
 
@@ -55,6 +58,38 @@ def metadata(user: str, notebook: Path, attach_pack: bool) -> dict:
     }
 
 
+def _inject_token(notebook: Path) -> None:
+    """Paste the HF token into a staged notebook copy.
+
+    Only ever the staged copy under a temp directory - never the file in the
+    repo, which is committed to a public GitHub repository that the notebooks
+    themselves clone at run time. A token pushed there is scraped within
+    minutes.
+
+    Even so this leaves the token readable in the Kaggle kernel's source, so the
+    version should be deleted once the run finishes.
+    """
+    from undertone import env
+
+    token = env.hf_token(required=True)
+    data = json.loads(notebook.read_text(encoding="utf-8"))
+    cell = {
+        "cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [],
+        "source": [
+            "# Injected at push time, not present in the repository.\n",
+            "# DELETE THIS KERNEL VERSION once the run finishes - the token is\n",
+            "# readable in the source of any notebook that carries it.\n",
+            "import os\n",
+            f'os.environ["HF_TOKEN"] = "{token}"\n',
+            'os.environ["HUGGING_FACE_HUB_TOKEN"] = os.environ["HF_TOKEN"]\n',
+            'print("HF token set inline")\n',
+        ],
+    }
+    # Before everything, so the pip cell can already authenticate downloads.
+    data["cells"].insert(0, cell)
+    notebook.write_text(json.dumps(data, indent=1), encoding="utf-8")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--user", required=True, help="your Kaggle username")
@@ -62,6 +97,11 @@ def main() -> int:
     ap.add_argument("--only", nargs="*", default=None,
                     help="numeric prefixes to push, e.g. 00 16 17")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--inject-hf-token", action="store_true",
+                    help="paste the token from .hf_token into the STAGED notebook "
+                         "copy (never the repo one). For gated models when a "
+                         "Kaggle secret is not set. Remove the kernel version "
+                         "afterwards - the token is visible in its source.")
     args = ap.parse_args()
 
     paths = sorted(args.notebooks.glob("*.ipynb"))
@@ -79,6 +119,8 @@ def main() -> int:
         with tempfile.TemporaryDirectory() as tmp:
             staged = Path(tmp)
             shutil.copy(path, staged / path.name)
+            if args.inject_hf_token:
+                _inject_token(staged / path.name)
             (staged / "kernel-metadata.json").write_text(
                 json.dumps(meta, indent=2), encoding="utf-8")
 
