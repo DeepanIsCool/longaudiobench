@@ -144,17 +144,6 @@ class _Qwen25Omni(ModelAdapter):
             return {}
         return {"return_audio": False, "use_audio_in_video": False}
 
-    def load_kwargs(self, **extra) -> dict:
-        kwargs = super().load_kwargs(**extra)
-        # 10.7B across 2x15.6GB is tight enough that accelerate's default split
-        # leaves GPU 1 with no room for activations -- the 7B OOM'd at inference
-        # with 10 MiB free after loading cleanly. Cap both so the KV cache fits.
-        if kwargs.get("device_map") == "auto" and self.needs_balancing:
-            kwargs["max_memory"] = {0: "12GiB", 1: "12GiB", "cpu": "24GiB"}
-        return kwargs
-
-    needs_balancing = False
-
 
 @register
 class Qwen25Omni3B(_Qwen25Omni):

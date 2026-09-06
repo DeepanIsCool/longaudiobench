@@ -266,3 +266,45 @@ class TestNoDuplicateAttnKwarg:
                 # the base one by setting attn_implementation = None.
                 assert not re.search(r"(?<!_)\battn_implementation\s*=", call), \
                     f"{f.name}: {call[:80]}"
+
+
+class TestWeightBudget:
+    """The 140-error pattern: MOSS and Omni-7B failed at exactly L3 and L4 -
+    the conditions carrying 5 minutes of audio - because weights had taken the
+    whole card and left nothing for activations."""
+
+    def test_budget_covers_the_worst_observed_activation(self):
+        from undertone.adapters.base import WEIGHT_BUDGET_GIB
+
+        card_gib = 14.56          # a Kaggle T4 as reported by torch
+        worst_activation = 6.07   # Qwen2.5-Omni-7B, measured
+        assert card_gib - WEIGHT_BUDGET_GIB > worst_activation, (
+            "weights leave less headroom than the largest allocation seen")
+
+    def test_moss_would_now_have_room(self):
+        """It missed by 0.3 GiB: 2.15 GiB needed, 1.83 GiB free."""
+        from undertone.adapters.base import WEIGHT_BUDGET_GIB
+
+        assert 14.56 - WEIGHT_BUDGET_GIB > 2.15
+
+    def test_every_offloaded_model_is_capped(self):
+        pytest.importorskip("torch")
+        from undertone.adapters.base import _REGISTRY, get_adapter
+
+        for key, cls in _REGISTRY.items():
+            if not (cls.prefers_single_device or cls.single_gpu_with_cpu_overflow
+                    or cls.needs_balancing):
+                continue
+            a = get_adapter(key)
+            a._hardware = env.Hardware("cuda", "float16", "auto", "2x T4", 31.0, False)
+            assert a.load_kwargs().get("max_memory"), key
+
+    def test_pinning_to_one_device_still_caps_it(self):
+        """prefers_single_device used to mean 'cuda:0, uncapped', which is how
+        12.73 GiB of weights ended up on a 14.56 GiB card."""
+        import inspect
+
+        from undertone.adapters import base
+
+        src = inspect.getsource(base.ModelAdapter.load_kwargs)
+        assert 'kwargs["device_map"] = "cuda:0"' not in src

@@ -28,6 +28,16 @@ import numpy as np
 
 SAMPLE_RATE = 16000
 
+# How much of a 14.56 GiB T4 the weights may occupy, leaving the rest for
+# activations and the KV cache.
+#
+# Measured, not guessed. Five minutes of audio is ~7.5k audio tokens, and the
+# observed peak activation was 6.07 GiB (Qwen2.5-Omni-7B) and 2.15 GiB (MOSS).
+# Every model that failed did so at exactly L3 and L4 - 140 of 280 cells - with
+# weights holding 9.9 to 12.7 GiB and only 1.8 to 4.7 GiB left. Capping weights
+# at 8 GiB leaves ~6.5 GiB, above the worst case seen.
+WEIGHT_BUDGET_GIB = 8
+
 
 # --------------------------------------------------------------------------
 # helpers
@@ -151,6 +161,7 @@ class ModelAdapter(ABC):
     # 15.6 GB T4s produced "source is on cuda:1, different from other tensors on
     # cuda:0". If it fits on one device, put it on one device.
     prefers_single_device: bool = False
+    needs_balancing: bool = False
 
     # For a model that does NOT fit one GPU but still breaks when split across
     # two: keep every GPU tensor on cuda:0 and let the overflow go to CPU.
@@ -202,14 +213,19 @@ class ModelAdapter(ABC):
             kwargs["attn_implementation"] = self.attn_implementation
         if self.hardware.device_map:
             if self.prefers_single_device and self.hardware.backend == "cuda":
-                kwargs["device_map"] = "cuda:0"
+                # Pinned to one device, but still capped. Left uncapped, MOSS-4B
+                # put 12.73 GiB of weights on a 14.56 GiB card and then failed a
+                # 2.15 GiB activation with 1.83 GiB free - missing by 0.3 GiB on
+                # every L3 and L4 cell, 140 of 280.
+                kwargs["device_map"] = "auto"
+                kwargs["max_memory"] = {0: f"{WEIGHT_BUDGET_GIB}GiB", "cpu": "32GiB"}
             elif self.single_gpu_with_cpu_overflow and self.hardware.backend == "cuda":
                 kwargs["device_map"] = "auto"
-                # 11 GiB, not 14. At 14 the weights fill a 14.56 GiB card and
-                # MOSS-8B OOM'd mid-sweep with 88 MiB free: it passed smoke on a
-                # 20 s clip and died once the audio got longer. Activations for
-                # a 5-minute window need room the weights were holding.
-                kwargs["max_memory"] = {0: "11GiB", "cpu": "32GiB"}
+                kwargs["max_memory"] = {0: f"{WEIGHT_BUDGET_GIB}GiB", "cpu": "32GiB"}
+            elif self.needs_balancing and self.hardware.backend == "cuda":
+                kwargs["device_map"] = "auto"
+                kwargs["max_memory"] = {0: f"{WEIGHT_BUDGET_GIB}GiB",
+                                        1: f"{WEIGHT_BUDGET_GIB}GiB", "cpu": "32GiB"}
             else:
                 kwargs["device_map"] = self.hardware.device_map
         return kwargs
