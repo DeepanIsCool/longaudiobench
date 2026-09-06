@@ -38,6 +38,11 @@ class AudioFlamingoNext(ModelAdapter):
     model_id = "nvidia/audio-flamingo-next-hf"
     max_audio_s = 1800.0
     primary = "logits"
+    # ~8 GiB of weights fit one T4, so uncapped "auto" put all of them on cuda:0
+    # and left cuda:1 idle. GPU 0 then held 13.98 of 14.56 GiB and every L3 and
+    # L4 cell failed a 6.16 GiB activation with 330 MiB free. Splitting the
+    # weights across both cards leaves roughly 10 GiB free on each.
+    needs_balancing = True
     notes = (
         "Processor configured for 1800 s, 30 s internal windows. Card uses bf16; "
         "fp16 here for sm75, with input_features cast to model dtype."
