@@ -308,3 +308,47 @@ class TestWeightBudget:
 
         src = inspect.getsource(base.ModelAdapter.load_kwargs)
         assert 'kwargs["device_map"] = "cuda:0"' not in src
+
+
+class TestBalancedSplitStaysOnTheGpus:
+    """Qwen2.5-Omni-7B cloned the weight-budget fix and still OOM'd 140 cells.
+
+    Its log carried "Some parameters are on the meta device because they were
+    offloaded to the cpu": a "cpu" entry in max_memory made accelerate offload a
+    model that fits across two T4s, and staging those layers back through GPU 0
+    left 428 MiB free where the uncapped run had left 4.66 GiB.
+    """
+
+    def test_balancing_offers_no_cpu(self):
+        """Runs without a GPU: the CUDA hardware is stubbed in, so the branch is
+        exercised on any machine rather than skipped where it matters least."""
+        import undertone.env as env
+        from undertone.adapters.base import _REGISTRY
+        from undertone.env import Hardware
+
+        cuda = Hardware(backend="cuda", dtype="float16", device_map="auto",
+                        detail="2x Tesla T4 (sm75)", total_memory_gb=14.56,
+                        supports_bf16=False)
+        balanced = [k for k, c in _REGISTRY.items() if c.needs_balancing]
+        assert balanced, "no adapter uses the balanced split; test is vacuous"
+        real_dtype = env.torch_dtype
+        env.torch_dtype = lambda *a, **k: "float16"   # the only line needing torch
+        try:
+            maps = {}
+            for key in balanced:
+                adapter = _REGISTRY[key].__new__(_REGISTRY[key])
+                adapter._hardware = cuda
+                maps[key] = adapter.load_kwargs().get("max_memory", {})
+        finally:
+            env.torch_dtype = real_dtype
+        for key, max_memory in maps.items():
+            assert "cpu" not in max_memory, (
+                f"{key} offers CPU; accelerate will offload and stage through "
+                "GPU 0 instead of splitting across the two cards")
+            assert 1 in max_memory, f"{key} must be given the second card"
+
+    def test_two_capped_gpus_hold_the_weights(self):
+        """~14 GiB of fp16 weights against two capped cards."""
+        from undertone.adapters.base import WEIGHT_BUDGET_GIB
+
+        assert 2 * WEIGHT_BUDGET_GIB > 14.0

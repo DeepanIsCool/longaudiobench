@@ -223,9 +223,15 @@ class ModelAdapter(ABC):
                 kwargs["device_map"] = "auto"
                 kwargs["max_memory"] = {0: f"{WEIGHT_BUDGET_GIB}GiB", "cpu": "32GiB"}
             elif self.needs_balancing and self.hardware.backend == "cuda":
+                # No "cpu" entry: two T4s hold 29 GiB and these models weigh ~14,
+                # so CPU is never needed. Offering it anyway made accelerate
+                # offload regardless, and staging those layers back through
+                # GPU 0 during the forward pass drove it to 13.91 of 14.56 GiB -
+                # less headroom than leaving it uncapped. Omitting the key forces
+                # the split to stay on the two cards.
                 kwargs["device_map"] = "auto"
                 kwargs["max_memory"] = {0: f"{WEIGHT_BUDGET_GIB}GiB",
-                                        1: f"{WEIGHT_BUDGET_GIB}GiB", "cpu": "32GiB"}
+                                        1: f"{WEIGHT_BUDGET_GIB}GiB"}
             else:
                 kwargs["device_map"] = self.hardware.device_map
         return kwargs
