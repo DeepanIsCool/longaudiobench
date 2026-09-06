@@ -58,7 +58,10 @@ def completed_keys(path: str | Path, fingerprint: str | None = None) -> set[str]
                 continue  # a half-written final line from a killed session
             if row.get("error") is not None or "item_id" not in row:
                 continue
-            if fingerprint and row.get("pack_fingerprint") not in (None, fingerprint):
+            # An unstamped row came from a pack this code cannot identify, so it
+            # cannot be shown to match. Treating None as "matches anything" is
+            # what let a stale pack resume into a fresh sweep.
+            if fingerprint and row.get("pack_fingerprint") != fingerprint:
                 continue
             done.add(_key(row["item_id"], row["condition"]))
     return done
@@ -113,8 +116,11 @@ def run_model(
     items = list(pack)
     conditions = list(conditions)
     # Stamped on every row: a sweep against a stale pack is otherwise
-    # indistinguishable from a fresh one.
-    fingerprint = pack.meta.get("fingerprint") if hasattr(pack, "meta") else None
+    # indistinguishable from a fresh one. Derived from the items themselves, not
+    # read from meta - packs built before the fingerprint existed have no
+    # "fingerprint" key, and reading meta returned None for every run, which made
+    # the guard below accept anything. Four incompatible packs got through.
+    fingerprint = pack.fingerprint
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     audio_root = Path(audio_root)

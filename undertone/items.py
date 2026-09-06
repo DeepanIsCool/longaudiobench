@@ -152,7 +152,14 @@ class ItemPack:
                     meta = obj["__meta__"]
                 else:
                     items.append(MCQItem.from_dict(obj))
-        return cls(items=items, meta=meta)
+        pack = cls(items=items, meta=meta)
+        stamped = meta.get("fingerprint")
+        if stamped and stamped != pack.fingerprint:
+            raise ValueError(
+                f"{path}: items hash to {pack.fingerprint} but the file says "
+                f"{stamped}. The pack was edited after it was saved; rebuild it "
+                "rather than running a sweep against an unknown item set.")
+        return pack
 
     def filter(self, **kw: Any) -> "ItemPack":
         """Subset by any scalar attribute, e.g. ``pack.filter(lang="en")``."""

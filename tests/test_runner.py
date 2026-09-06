@@ -259,21 +259,40 @@ class TestResumeAcrossPacks:
         assert runner.completed_keys(path, "NEW") == set()
         assert runner.completed_keys(path, "OLD") == {"it_000|L1"}
 
-    def test_rows_without_a_fingerprint_still_resume(self, tmp_path):
+    def test_rows_without_a_fingerprint_are_not_resumed(self, tmp_path):
+        """An unstamped row came from a pack this code cannot identify.
+
+        This asserted the opposite until four incompatible packs got through:
+        treating None as "matches anything" meant a stale run resumed straight
+        into a fresh sweep.
+        """
         path = tmp_path / "r.jsonl"
         with path.open("w") as fh:
             fh.write(json.dumps({"item_id": "it_000", "condition": "L1",
                                  "error": None}) + "\n")
-        assert runner.completed_keys(path, "NEW") == {"it_000|L1"}
+        assert runner.completed_keys(path, "NEW") == set()
 
     def test_the_fingerprint_reaches_every_row(self, tmp_path):
-        from undertone.items import ItemPack
-
+        """Derived from the items, not read from meta - a pack saved before the
+        fingerprint existed has no meta key, and reading meta yielded None on
+        every real run, disabling the guard entirely."""
         pack = make_pack(2)
-        pack.meta["fingerprint"] = "abc123"
+        pack.meta.pop("fingerprint", None)
         out = runner.run_model(StubAdapter(), pack, tmp_path / "r.jsonl",
                                conditions=["L1"], progress=False)
-        assert {r["pack_fingerprint"] for r in runner.load_rows(out)} == {"abc123"}
+        assert {r["pack_fingerprint"] for r in runner.load_rows(out)} == {
+            pack.fingerprint}
+
+    def test_a_pack_edited_after_saving_is_refused(self, tmp_path):
+        from undertone.items import ItemPack
+
+        path = tmp_path / "pack.jsonl"
+        make_pack(2).save(path)
+        lines = path.read_text().splitlines()
+        lines[1] = lines[1].replace("it_000", "it_999")
+        path.write_text("\n".join(lines) + "\n")
+        with pytest.raises(ValueError, match="rebuild it"):
+            ItemPack.load(path)
 
 
 class TestAudioCacheStaleness:
