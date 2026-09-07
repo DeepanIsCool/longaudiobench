@@ -25,7 +25,12 @@ from undertone import adapters  # noqa: E402
 from undertone.adapters.base import _REGISTRY  # noqa: E402
 
 REPO_URL = "https://github.com/DeepanIsCool/longaudiobench.git"
-REPO_REF = "undertone"     # pin to a commit sha before the run that goes in the paper
+# A tag, not a branch. A branch moves: the runs collected before this line were
+# produced by an unknown spread of commits, one of which switched the attention
+# kernel, and no two models are guaranteed to have been scored by the same code.
+# git clone --depth 1 --branch takes a tag or a branch but not a bare sha, so the
+# pin is a tag. Move it deliberately, never as a side effect of committing.
+REPO_REF = "paper-run-1"
 ITEM_PACK_DATASET = "undertone-item-pack"
 
 # HARD pin, not a floor. ">=4.57.1" resolved to transformers 5.0.0 on Kaggle and

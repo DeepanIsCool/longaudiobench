@@ -205,3 +205,29 @@ class TestResultCollection:
         foreign = [{"item_id": "not_a_real_item", "condition": "L1",
                     "model_key": "m"}]
         assert item_set_id(foreign) != CANONICAL_ITEM_SET
+
+
+class TestCodePin:
+    """Every model in the published table must be scored by one commit."""
+
+    def test_the_repo_ref_is_a_tag_not_a_branch(self):
+        import subprocess
+
+        from scripts.make_notebooks import REPO_REF
+
+        assert REPO_REF != "undertone", (
+            "REPO_REF is the branch; a branch moves between runs and the table "
+            "cannot then claim one code version")
+        tags = subprocess.run(["git", "tag", "-l"], capture_output=True,
+                              text=True).stdout.split()
+        assert REPO_REF in tags, f"{REPO_REF} is not a tag in this repository"
+
+    def test_every_model_notebook_clones_the_pin(self):
+        import json
+
+        from scripts.make_notebooks import REPO_REF
+
+        for path in sorted(pathlib.Path("notebooks").glob("*.ipynb")):
+            src = "".join("".join(c["source"])
+                          for c in json.loads(path.read_text())["cells"])
+            assert f'REPO_REF = "{REPO_REF}"' in src, path
