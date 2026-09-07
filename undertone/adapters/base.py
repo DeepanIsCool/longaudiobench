@@ -40,16 +40,23 @@ SAMPLE_RATE = 16000
 # at 8 GiB leaves ~6.5 GiB, above the worst case seen.
 WEIGHT_BUDGET_GIB = 8
 
-# The balanced split is deliberately lopsided. device_map="auto" fills cuda:0
-# first, so the audio encoder lands there and its attention over five minutes of
-# audio is the largest allocation in the run - 6.07 GiB for Omni-7B, 6.16 for
-# Audio-Flamingo. An even 8/8 split left cuda:0 with 6.5 GiB and it still died,
-# because 8+8 GiB cannot hold weights of 22.4 GB (Omni-7B, thinker + talker +
-# token2wav) or 16.5 GB (Audio-Flamingo), so accelerate offloaded the remainder
-# to disk and staged it back through cuda:0 anyway. Giving cuda:0 less weight
-# and cuda:1 more holds both models outright and leaves ~9.5 GiB for activations.
-FIRST_GPU_BUDGET_GIB = 5
-SECOND_GPU_BUDGET_GIB = 13
+# The balanced split is even. A lopsided 5/13 was tried to keep cuda:0 free for
+# the audio encoder, and it did free 3.41 GiB there for Audio-Flamingo - but the
+# card still needed 17.3 GiB (5 weights + 6.15 activations + a 6.16 request) and
+# has 14.56, so it failed anyway, while Omni-7B simply moved its OOM to cuda:1
+# and lost L2 in the process. L3 and L4 do not fit these two models on 2xT4 at
+# any split; see AF_NEXT_L3_SHORTFALL_GIB below.
+FIRST_GPU_BUDGET_GIB = WEIGHT_BUDGET_GIB
+SECOND_GPU_BUDGET_GIB = WEIGHT_BUDGET_GIB
+
+# Measured, not estimated. Both models complete L1 and L2 and cannot complete
+# L3 or L4 on this hardware: the peak is a single allocation for attention over
+# five minutes of audio, and it lands on one device whatever the split.
+#   Audio-Flamingo: 5.00 weights + 6.15 activations + 6.16 requested = 17.31 GiB
+#   Omni-7B:        8.00 weights + 5.91 activations + 6.07 requested = 19.98 GiB
+# against 14.56 GiB per T4. They need a ~24 GB card.
+AF_NEXT_L3_SHORTFALL_GIB = 17.31 - 14.56
+OMNI_7B_L3_SHORTFALL_GIB = 19.98 - 14.56
 
 
 # --------------------------------------------------------------------------

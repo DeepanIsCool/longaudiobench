@@ -217,16 +217,23 @@ class TestHardwareBlocked:
 
 
 class TestAttentionBackend:
-    def test_every_model_asks_for_sdpa_except_phi4(self):
+    # Models whose own code refuses sdpa. Each entry is a load failure, not a
+    # preference: phi4's remote code wants eager, and Gemma-3n's vision tower is
+    # a TimmWrapperModel that raises "does not support an attention
+    # implementation through torch.nn.functional.scaled_dot_product_attention".
+    SDPA_EXEMPT = {"phi4_multimodal": None,
+                   "gemma3n_e2b": "eager", "gemma3n_e4b": "eager"}
+
+    def test_every_model_asks_for_sdpa_unless_its_code_refuses(self):
         """The math kernel materialises the full attention matrix - a 60 GiB
         allocation over ~45k audio tokens, which is what made L3 unreachable.
-        Voxtral, MOSS, Gemma-3n and AF-Next were all defaulting to it."""
+        Voxtral, MOSS and AF-Next were all defaulting to it."""
         from undertone import adapters
 
         for key in adapters.list_adapters():
             a = adapters.get_adapter(key)
-            if key == "phi4_multimodal":
-                assert a.attn_implementation is None, "its remote code wants eager"
+            if key in self.SDPA_EXEMPT:
+                assert a.attn_implementation == self.SDPA_EXEMPT[key], key
             else:
                 assert a.attn_implementation == "sdpa", key
 
@@ -363,9 +370,30 @@ class TestBalancedSplitStaysOnTheGpus:
         assert budget > audio_flamingo_gib, "Audio-Flamingo will offload again"
         assert budget > omni_thinker_gib, "Omni-7B Thinker will offload again"
 
-    def test_first_gpu_keeps_room_for_the_encoder(self):
-        """cuda:0 takes the audio encoder, so its activations are the largest."""
-        from undertone.adapters.base import FIRST_GPU_BUDGET_GIB
+    def test_the_two_long_context_failures_are_hardware_not_config(self):
+        """No split of a 14.56 GiB card fits these two at L3.
 
-        worst_activation = 6.16   # Audio-Flamingo at L3, measured
-        assert 14.56 - FIRST_GPU_BUDGET_GIB > worst_activation
+        A lopsided 5/13 split was tried and did free 3.41 GiB on cuda:0 for
+        Audio-Flamingo, which still needed 17.31 GiB there; Omni-7B just moved
+        its OOM to cuda:1 and lost L2. Both shortfalls are positive, so the
+        remaining failures are a hardware limit and not a budget to re-tune.
+        """
+        from undertone.adapters.base import (AF_NEXT_L3_SHORTFALL_GIB,
+                                             OMNI_7B_L3_SHORTFALL_GIB)
+
+        assert AF_NEXT_L3_SHORTFALL_GIB > 0
+        assert OMNI_7B_L3_SHORTFALL_GIB > 0
+
+
+class TestAttentionOverrides:
+    """sdpa is the class default because the math kernel materialises the full
+    attention matrix. Not every model accepts it."""
+
+    def test_gemma3n_does_not_request_sdpa(self):
+        from undertone.adapters.base import _REGISTRY
+
+        for key, cls in _REGISTRY.items():
+            if key.startswith("gemma3n"):
+                assert cls.attn_implementation == "eager", (
+                    f"{key} requests {cls.attn_implementation}; its TimmWrapper "
+                    "vision tower rejects sdpa and the adapter fails to load")

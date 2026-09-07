@@ -25,6 +25,11 @@ class _Gemma3n(ModelAdapter):
     max_audio_s = 30.0
     primary = "logits"
     audio_float_keys = ("input_features", "input_features_mask")
+    # Not the sdpa class default. Gemma-3n's vision tower is a TimmWrapperModel,
+    # which refuses the request outright: "TimmWrapperModel does not support an
+    # attention implementation through torch.nn.functional.scaled_dot_product_
+    # attention yet." The adapter loaded before sdpa became the default.
+    attn_implementation = "eager"
 
     def load(self) -> None:
         import torch
