@@ -67,7 +67,12 @@ def collect(user: str, config: str, slugs: list[str]) -> int:
             if not fetch(user, slug, config, tmp):
                 print(f"{slug}: fetch failed")
                 continue
+            # Not rglob over everything: the kernel output also contains the
+            # repo it cloned, and results/ is committed there, so a plain walk
+            # finds ten other models' files and would file them as this run's.
             for path in sorted(tmp.rglob("*.jsonl")):
+                if "longaudiobench" in path.parts:
+                    continue
                 rows = read_rows(path)
                 if not rows:
                     continue

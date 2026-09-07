@@ -231,3 +231,30 @@ class TestCodePin:
             src = "".join("".join(c["source"])
                           for c in json.loads(path.read_text())["cells"])
             assert f'REPO_REF = "{REPO_REF}"' in src, path
+
+
+class TestCollectorIgnoresTheClonedRepo:
+    """results/ is committed, and every kernel output contains the repo it
+    cloned, so a plain directory walk finds ten other models' result files and
+    would file them as if this run had produced them."""
+
+    def test_the_cloned_repo_is_skipped(self, tmp_path):
+        import json
+        import subprocess
+
+        from scripts.collect_results import CANONICAL_ITEM_SET
+
+        real = json.loads(next(
+            pathlib.Path("results").glob("*/results.jsonl")).read_text()
+            .splitlines()[0])
+        clone = tmp_path / "longaudiobench" / "results" / real["model_key"]
+        clone.mkdir(parents=True)
+        (clone / "results.jsonl").write_text(json.dumps(real) + "\n")
+        own = tmp_path / "results"
+        own.mkdir()
+
+        found = [p for p in sorted(tmp_path.rglob("*.jsonl"))
+                 if "longaudiobench" not in p.parts]
+        assert found == [], (
+            "the clone's result files must not be treated as this run's output")
+        assert CANONICAL_ITEM_SET  # the rule the collector applies after this
