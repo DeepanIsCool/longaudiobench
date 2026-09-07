@@ -155,3 +155,84 @@ def curve(rows: list[dict[str, Any]], levels: tuple[float, ...] = DEFAULT_LEVELS
                                  if at else float("nan")),
         })
     return out
+
+
+# The competitor's location is recorded as a single timestamp, so the span is
+# reconstructed around it. Mentions in these recordings run about a second;
+# the pad only has to be wide enough that the gain edit and the contrast
+# measurement land on the mention rather than beside it.
+COMPETITOR_SPAN_S = 1.2
+
+
+def competitor_spans(item: MCQItem) -> list[tuple[float, float]]:
+    """Where the loud competitor is, from the item's own provenance.
+
+    Returns an empty list when the item never recorded one - those items are
+    skipped rather than swept, because a salience trap cannot operate when the
+    salient thing is not in the window.
+    """
+    at = (item.provenance or {}).get("salience_at")
+    if at is None:
+        return []
+    half = COMPETITOR_SPAN_S / 2
+    return [(max(0.0, float(at) - half), float(at) + half)]
+
+
+def run_sweep(adapter, pack, out_path, levels: tuple[float, ...] = DEFAULT_LEVELS,
+              seed: int = 0, audio_root: str = ".", progress: bool = True):
+    """Score every sweepable item at every attenuation level.
+
+    Mirrors runner.run_model: appends one row per (item, level), resumes from
+    what is already on disk, and stamps the pack fingerprint and code sha so a
+    curve cannot silently mix item packs or code versions.
+    """
+    import json
+    import os
+    from pathlib import Path
+
+    from .adapters.base import load_audio
+
+    items = [it for it in pack if competitor_spans(it)]
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fingerprint = pack.fingerprint
+
+    done = set()
+    if out_path.exists():
+        for line in out_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if row.get("pack_fingerprint") == fingerprint and not row.get("error"):
+                done.add((row["item_id"], row.get("level_db")))
+
+    skipped = len(list(pack)) - len(items)
+    if progress:
+        print(f"[{adapter.key}] sweep: {len(items)} items x {len(levels)} levels, "
+              f"{skipped} items have no recorded competitor and are skipped")
+
+    written = 0
+    with out_path.open("a", encoding="utf-8") as fh:
+        for n, item in enumerate(items, 1):
+            todo = [lv for lv in levels if (item.item_id, lv) not in done]
+            if not todo:
+                continue
+            audio = load_audio(os.path.join(audio_root, item.audio_path))
+            window = contrast_window(item, *competitor_spans(item)[0])
+            clip = audio[int(window.start * SAMPLE_RATE):int(window.end * SAMPLE_RATE)]
+            for row in sweep_item(adapter, item, clip, window,
+                                  competitor_spans(item), tuple(todo), seed):
+                row["pack_fingerprint"] = fingerprint
+                row["code_sha"] = os.environ.get("UNDERTONE_CODE_SHA")
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+                written += 1
+            fh.flush()
+            if progress and n % 10 == 0:
+                print(f"  {n}/{len(items)} items, {written} rows")
+    if progress:
+        print(f"[{adapter.key}] sweep wrote {written} rows to {out_path}")
+    return out_path

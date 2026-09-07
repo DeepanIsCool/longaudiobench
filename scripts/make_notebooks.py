@@ -422,8 +422,33 @@ runner.run_model(
     run_id="pilot",
     audio_root=PACK_DIR,
 )
+print("ladder done ->", OUT)
+"""
+
+# The one experiment that manipulates prominence instead of observing it. The
+# ladder shows models prefer the loud competitor; this measures the attenuation
+# at which that preference takes over, in dB, per model. Windows are ~15 s and
+# there are five levels, so it costs a fraction of the ladder.
+CELL_SWEEP = """\
+from undertone import sweep
+
+SWEEP_OUT = f"/kaggle/working/results/{ADAPTER_KEY}_sweep.jsonl"
+sweep.run_sweep(adapter, pack, SWEEP_OUT, audio_root=PACK_DIR, seed=SEED)
 adapter.unload()
-print("done ->", OUT)
+
+sweep_rows = [r for r in runner.load_rows(SWEEP_OUT) if not r.get("error")]
+print(f"\\n{len(sweep_rows)} sweep rows")
+if sweep_rows:
+    print("level_db -> salience-grab rate")
+    for lv in sweep.DEFAULT_LEVELS:
+        at = [r for r in sweep_rows if r["level_db"] == lv]
+        if at:
+            grab = sum(r["role_chosen"] == "salience" for r in at) / len(at)
+            acc = sum(r["role_chosen"] == "correct" for r in at) / len(at)
+            print(f"  {lv:+6.1f} dB   salience={grab:.3f}  correct={acc:.3f}  n={len(at)}")
+    flip = sweep.flip_threshold(sweep_rows)
+    print(f"\\nflip threshold: {flip if flip == flip else 'never flips'} dB")
+print("done ->", SWEEP_OUT)
 """
 
 CELL_SUMMARY = """\
@@ -525,6 +550,10 @@ are excluded from the accuracy table. They are never scored as zero.
         code(CELL_SELFCHECK),
         code(CELL_PACK.format(pack=ITEM_PACK_DATASET)),
         code(CELL_RUN),
+        md("## Prominence gain sweep\n\nAttenuate the answer in steps and find where the model "
+           "switches to the loud competitor. This is the causal counterpart to the "
+           "observational prominence categories."),
+        code(CELL_SWEEP),
         code(CELL_SUMMARY),
     ])
 

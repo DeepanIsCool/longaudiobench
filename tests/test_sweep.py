@@ -143,3 +143,37 @@ class TestCurve:
 
         out = sweep.curve([], (0.0, -6.0))
         assert all(math.isnan(c["accuracy"]) for c in out)
+
+
+class TestSweepIsActuallyWired:
+    """sweep.py existed for days with no caller outside its own tests: every
+    results row was L1-L4 and not one carried a SWEEP condition. The causal
+    experiment was written, tested, and never run."""
+
+    def test_every_model_notebook_runs_the_sweep(self):
+        import json
+        import pathlib
+
+        from undertone.adapters.base import _REGISTRY
+
+        infra = {"00", "01", "02", "90"}
+        for path in sorted(pathlib.Path("notebooks").glob("*.ipynb")):
+            if path.stem.split("_")[0] in infra:
+                continue
+            src = "".join("".join(c["source"])
+                          for c in json.loads(path.read_text())["cells"])
+            assert "sweep.run_sweep" in src, f"{path.name} never runs the sweep"
+
+    def test_competitor_spans_come_from_provenance(self):
+        from undertone.sweep import competitor_spans
+
+        it = item()
+        it.provenance = {"salience_at": 40.0}
+        spans = competitor_spans(it)
+        assert len(spans) == 1
+        assert spans[0][0] < 40.0 < spans[0][1]
+
+        it.provenance = {}
+        assert competitor_spans(it) == [], (
+            "an item with no recorded competitor must be skipped, not swept - "
+            "a salience trap cannot operate when the salient thing is absent")
