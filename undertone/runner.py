@@ -145,6 +145,7 @@ def run_model(
                 also_generate, max_new_tokens,
             )
             row["pack_fingerprint"] = fingerprint
+            row["code_sha"] = os.environ.get("UNDERTONE_CODE_SHA")
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
             fh.flush()
 

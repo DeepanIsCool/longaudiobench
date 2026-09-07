@@ -24,6 +24,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
+import os
+
 import numpy as np
 
 SAMPLE_RATE = 16000
@@ -351,6 +353,10 @@ class ModelAdapter(ABC):
             # to the full 22.4 GB model on any exception, and without this the
             # results gave no way to tell which had happened.
             "loaded_via": getattr(self, "loaded_via", None),
+            # The notebooks clone a branch, so the commit is only knowable at
+            # run time. Without it a results table cannot say whether two models
+            # were scored by the same code.
+            "code_sha": os.environ.get("UNDERTONE_CODE_SHA"),
             "versions": versions(),
         }
 

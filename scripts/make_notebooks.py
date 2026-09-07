@@ -293,6 +293,16 @@ for attempt in range(3):
 else:
     raise RuntimeError("could not clone the benchmark repo")
 
+# Which commit actually ran. REPO_REF may be a branch, and a branch moves: the
+# results already on disk were produced by an unknown spread of commits, one of
+# which switched the attention kernel, and nothing recorded it. Every row a
+# sweep writes now carries this.
+CODE_SHA = subprocess.run(["git", "-C", "/kaggle/working/longaudiobench",
+                           "rev-parse", "HEAD"],
+                          capture_output=True, text=True).stdout.strip()
+os.environ["UNDERTONE_CODE_SHA"] = CODE_SHA
+print(f"code: {{REPO_REF}} @ {{CODE_SHA[:12]}}")
+
 sys.path.insert(0, "/kaggle/working/longaudiobench")
 import importlib; importlib.invalidate_caches()
 

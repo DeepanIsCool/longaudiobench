@@ -7,6 +7,7 @@ truncation flag, role mapping, primary-scorer selection, and error containment.
 from __future__ import annotations
 
 import json
+import pathlib
 
 import numpy as np
 import pytest
@@ -303,3 +304,21 @@ class TestAudioCacheStaleness:
 
         src = inspect.getsource(runner._AudioCache.get)
         assert "st_size" in src and "st_mtime" in src
+
+
+class TestCodeProvenance:
+    """The notebooks clone a branch, and a branch moves. One commit in the run
+    history switched the attention kernel from math to memory-efficient SDPA,
+    which changes floating-point results and can flip a borderline argmax over
+    A/B/C/D. Nothing recorded which commit produced which row."""
+
+    def test_rows_carry_the_code_sha(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("UNDERTONE_CODE_SHA", "deadbeefcafe")
+        out = runner.run_model(StubAdapter(), make_pack(2), tmp_path / "r.jsonl",
+                               conditions=["L1"], progress=False)
+        assert {r["code_sha"] for r in runner.load_rows(out)} == {"deadbeefcafe"}
+
+    def test_the_notebook_records_the_sha_it_cloned(self):
+        src = pathlib.Path("scripts/make_notebooks.py").read_text()
+        assert "UNDERTONE_CODE_SHA" in src and "rev-parse" in src, (
+            "the clone cell must resolve and export the commit it checked out")
