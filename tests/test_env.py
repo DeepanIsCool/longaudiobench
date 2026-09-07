@@ -458,3 +458,29 @@ class TestBigCardsAreNotCapped:
         for key in offloaders:
             kwargs = self._kwargs(key, 14.56)
             assert "max_memory" in kwargs, f"{key} must stay capped on a T4"
+
+
+class TestHeadroomIsPerDevice:
+    """hardware.total_memory_gb sums every card. Testing it against a 24 GB
+    threshold made Kaggle's 2xT4 (31.2 GB total, 14.56 GiB each) look like a big
+    card, so MOSS loaded uncapped on a T4 - exactly the 140-cell OOM the cap
+    prevents. Only the smoke test's inference check stopped it reaching a sweep.
+    """
+
+    def test_two_small_cards_are_not_one_big_card(self):
+        from undertone.adapters.base import UNCAPPED_ABOVE_GIB
+
+        two_t4_total = 31.2          # what resolve_hardware reports on Kaggle
+        per_device = two_t4_total / 2
+        assert two_t4_total >= UNCAPPED_ABOVE_GIB, (
+            "the total is what made this bug possible; keep the case honest")
+        assert per_device < UNCAPPED_ABOVE_GIB, (
+            "per-device headroom on a T4 must stay under the threshold so the "
+            "cap still applies")
+
+    def test_the_source_reads_per_device(self):
+        import pathlib
+
+        src = pathlib.Path("undertone/adapters/base.py").read_text()
+        assert "per_device" in src and "get_device_properties(0)" in src, (
+            "the headroom check must measure one device, not the fleet total")

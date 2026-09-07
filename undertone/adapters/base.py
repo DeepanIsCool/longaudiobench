@@ -252,7 +252,20 @@ class ModelAdapter(ABC):
             # outright on a single-GPU host, because asking for device 1 makes
             # transformers probe memory_reserved() on a device that is not there:
             # "Device 1 is not available, available devices are [0]".
-            if self.hardware.total_memory_gb >= UNCAPPED_ABOVE_GIB:
+            # PER DEVICE, not the total. hardware.total_memory_gb sums every
+            # card, so Kaggle's 2xT4 reports 31.2 GB and sailed past a 24 GB
+            # "big card" test - which loaded MOSS uncapped on a 14.56 GiB T4 and
+            # reintroduced the 140-cell OOM this cap exists to prevent. The
+            # smoke test's inference check caught it before a sweep spent quota.
+            try:
+                import torch
+
+                per_device = (torch.cuda.get_device_properties(0).total_memory
+                              / 2 ** 30)
+            except Exception:
+                count = max(1, getattr(self.hardware, "device_count", 1) or 1)
+                per_device = self.hardware.total_memory_gb / count
+            if per_device >= UNCAPPED_ABOVE_GIB:
                 kwargs["device_map"] = "auto"
                 return kwargs
 
