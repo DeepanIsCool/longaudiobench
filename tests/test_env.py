@@ -348,11 +348,23 @@ class TestBalancedSplitStaysOnTheGpus:
                 maps[key] = adapter.load_kwargs().get("max_memory", {})
         finally:
             env.torch_dtype = real_dtype
+        try:
+            import torch
+
+            expected = set(range(max(1, torch.cuda.device_count())))
+        except Exception:
+            expected = {0}
         for key, max_memory in maps.items():
             assert "cpu" not in max_memory, (
                 f"{key} offers CPU; accelerate will offload and stage through "
                 "GPU 0 instead of splitting across the two cards")
-            assert 1 in max_memory, f"{key} must be given the second card"
+            # Never a device that is not there. Capping a hardcoded device 1 on
+            # a single-GPU host made transformers probe memory_reserved(1) and
+            # die with "Invalid device argument : did you call init?" - the pod
+            # then crash-looped, re-running pip and the clone every 15 seconds.
+            assert set(max_memory) == expected, (
+                f"{key} caps {sorted(max_memory)} but this host has "
+                f"{sorted(expected)}")
 
     def test_two_capped_gpus_hold_the_real_weights(self):
         """Sizes read off the Hub, not the adapter notes.
@@ -397,3 +409,52 @@ class TestAttentionOverrides:
                 assert cls.attn_implementation == "eager", (
                     f"{key} requests {cls.attn_implementation}; its TimmWrapper "
                     "vision tower rejects sdpa and the adapter fails to load")
+
+
+class TestBigCardsAreNotCapped:
+    """Renting 48 GiB is pointless if the adapter still caps weights at 8.
+
+    Every offload strategy here exists to survive a 14.56 GiB T4. On a big card
+    an 8 GiB cap would push 40 GiB of a loadable model to CPU, and the balanced
+    variant would ask for a device that may not exist.
+    """
+
+    def _kwargs(self, key, total_gb):
+        import undertone.env as env
+        from undertone.adapters.base import _REGISTRY
+        from undertone.env import Hardware
+
+        hw = Hardware(backend="cuda", dtype="float16", device_map="auto",
+                      detail=f"1x test ({total_gb} GB)",
+                      total_memory_gb=total_gb, supports_bf16=True)
+        adapter = _REGISTRY[key].__new__(_REGISTRY[key])
+        adapter._hardware = hw
+        real = env.torch_dtype
+        env.torch_dtype = lambda *a, **k: "float16"
+        try:
+            return adapter.load_kwargs()
+        finally:
+            env.torch_dtype = real
+
+    def test_no_cap_on_a_48_gib_card(self):
+        from undertone.adapters.base import _REGISTRY
+
+        offloaders = [k for k, c in _REGISTRY.items()
+                      if c.prefers_single_device or c.single_gpu_with_cpu_overflow
+                      or c.needs_balancing]
+        assert offloaders
+        for key in offloaders:
+            kwargs = self._kwargs(key, 47.7)
+            assert "max_memory" not in kwargs, (
+                f"{key} still caps weights on a 47.7 GB card; the model should "
+                "load flat with no offload")
+
+    def test_cap_still_applies_on_a_t4(self):
+        from undertone.adapters.base import _REGISTRY
+
+        offloaders = [k for k, c in _REGISTRY.items()
+                      if c.prefers_single_device or c.single_gpu_with_cpu_overflow
+                      or c.needs_balancing]
+        for key in offloaders:
+            kwargs = self._kwargs(key, 14.56)
+            assert "max_memory" in kwargs, f"{key} must stay capped on a T4"

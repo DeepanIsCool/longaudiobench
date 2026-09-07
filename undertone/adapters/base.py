@@ -40,6 +40,11 @@ SAMPLE_RATE = 16000
 # at 8 GiB leaves ~6.5 GiB, above the worst case seen.
 WEIGHT_BUDGET_GIB = 8
 
+# Above this much VRAM per device, no cap is applied: the whole point of
+# renting a bigger card is that the model loads flat, with no offload and no
+# staging through device 0 - which is what every memory failure on 2xT4 was.
+UNCAPPED_ABOVE_GIB = 24.0
+
 # The balanced split is even. A lopsided 5/13 was tried to keep cuda:0 free for
 # the audio encoder, and it did free 3.41 GiB there for Audio-Flamingo - but the
 # card still needed 17.3 GiB (5 weights + 6.15 activations + a 6.16 request) and
@@ -232,28 +237,45 @@ class ModelAdapter(ABC):
         if self.attn_implementation and "attn_implementation" not in kwargs:
             kwargs["attn_implementation"] = self.attn_implementation
         if self.hardware.device_map:
-            if self.prefers_single_device and self.hardware.backend == "cuda":
-                # Pinned to one device, but still capped. Left uncapped, MOSS-4B
-                # put 12.73 GiB of weights on a 14.56 GiB card and then failed a
-                # 2.15 GiB activation with 1.83 GiB free - missing by 0.3 GiB on
-                # every L3 and L4 cell, 140 of 280.
-                kwargs["device_map"] = "auto"
-                kwargs["max_memory"] = {0: f"{WEIGHT_BUDGET_GIB}GiB", "cpu": "32GiB"}
-            elif self.single_gpu_with_cpu_overflow and self.hardware.backend == "cuda":
-                kwargs["device_map"] = "auto"
-                kwargs["max_memory"] = {0: f"{WEIGHT_BUDGET_GIB}GiB", "cpu": "32GiB"}
-            elif self.needs_balancing and self.hardware.backend == "cuda":
-                # No "cpu" entry: two T4s hold 29 GiB and these models weigh ~14,
-                # so CPU is never needed. Offering it anyway made accelerate
-                # offload regardless, and staging those layers back through
-                # GPU 0 during the forward pass drove it to 13.91 of 14.56 GiB -
-                # less headroom than leaving it uncapped. Omitting the key forces
-                # the split to stay on the two cards.
-                kwargs["device_map"] = "auto"
-                kwargs["max_memory"] = {0: f"{FIRST_GPU_BUDGET_GIB}GiB",
-                                        1: f"{SECOND_GPU_BUDGET_GIB}GiB"}
-            else:
+            offloads = (self.prefers_single_device
+                        or self.single_gpu_with_cpu_overflow
+                        or self.needs_balancing)
+            if not offloads or self.hardware.backend != "cuda":
                 kwargs["device_map"] = self.hardware.device_map
+                return kwargs
+
+            # A card with real headroom needs no cap at all. Every one of these
+            # strategies exists to survive a 14.56 GiB T4: capping weights,
+            # spilling to CPU, splitting across two devices. Applied to a 48 GiB
+            # card they are actively harmful - an 8 GiB cap would push 40 GiB of
+            # a loadable model to CPU - and the two-device variant crashed
+            # outright on a single-GPU host, because asking for device 1 makes
+            # transformers probe memory_reserved() on a device that is not there:
+            # "Device 1 is not available, available devices are [0]".
+            if self.hardware.total_memory_gb >= UNCAPPED_ABOVE_GIB:
+                kwargs["device_map"] = "auto"
+                return kwargs
+
+            kwargs["device_map"] = "auto"
+            if self.needs_balancing:
+                # No "cpu" key: two T4s hold 29 GiB and these models weigh ~14,
+                # so offering CPU made accelerate offload anyway and stage the
+                # layers back through device 0, leaving less headroom than no
+                # cap at all. Only devices that exist are capped.
+                try:
+                    import torch
+
+                    count = max(1, torch.cuda.device_count())
+                except Exception:      # no torch: cap device 0 and no more
+                    count = 1
+                kwargs["max_memory"] = {i: f"{WEIGHT_BUDGET_GIB}GiB"
+                                        for i in range(count)}
+            else:
+                # Pinned to one device and capped. Uncapped, MOSS-4B put 12.73
+                # GiB of weights on a 14.56 GiB card and then failed a 2.15 GiB
+                # activation with 1.83 GiB free - 140 of 280 cells.
+                kwargs["max_memory"] = {0: f"{WEIGHT_BUDGET_GIB}GiB",
+                                        "cpu": "32GiB"}
         return kwargs
 
     def place(self, model):
