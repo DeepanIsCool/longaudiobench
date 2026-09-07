@@ -38,7 +38,18 @@ from .ladder import Window
 # Attenuation applied to the answer, in dB. 0 is the untouched control; the
 # steps are coarse because a psychometric curve needs range more than
 # resolution at this sample size.
-DEFAULT_LEVELS = (0.0, -3.0, -6.0, -9.0, -12.0)
+# 0 is the untouched control. The first run stopped at -12 dB and moved only 3
+# of 70 answers, with the gain edit verifiably landing (achieved contrast rose
+# 5.2 -> 16.7 dB across the steps), so the range was too narrow to reach a
+# threshold rather than the effect being absent. -18 and -24 extend it.
+#
+# -60 dB is not a level on the curve: it is the needle-removed control, ~0.001
+# amplitude and inaudible. If accuracy there matches accuracy at 0 dB, the model
+# was never reading the needle and every other number for that item measures a
+# prior rather than a retrieval. Nothing else in the benchmark tests that
+# per item.
+NEEDLE_REMOVED_DB = -60.0
+DEFAULT_LEVELS = (0.0, -3.0, -6.0, -9.0, -12.0, -18.0, -24.0, NEEDLE_REMOVED_DB)
 
 CONTRAST_PAD = 3.0      # seconds of context either side of the two mentions
 MAX_CONTRAST_WINDOW = 90.0
@@ -129,12 +140,40 @@ def flip_threshold(rows: list[dict[str, Any]]) -> float:
     model takes the loud wrong one. NaN when the model never flips within the
     swept range, which is itself informative and must not read as zero.
     """
-    ordered = sorted((r for r in rows if r.get("role_chosen")),
+    # The removal control is excluded: at -60 dB the needle is gone, so a
+    # salience answer there says nothing about a threshold. The first run
+    # reported "flip threshold: 0.0 dB" for a model that never flipped, because
+    # an item already answering salience at the untouched control counted as a
+    # flip at 0.
+    ordered = sorted((r for r in rows if r.get("role_chosen")
+                      and r["level_db"] != NEEDLE_REMOVED_DB),
                      key=lambda r: -r["level_db"])
+    if ordered and ordered[0]["role_chosen"] == "salience":
+        return float("nan")   # already lost before any attenuation
     for row in ordered:
         if row["role_chosen"] == "salience":
             return float(row["level_db"])
     return float("nan")
+
+
+def needle_necessity(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Does removing the answer from the audio change what the model says?
+
+    Accuracy at -60 dB is the per-item question-only floor. If it matches
+    accuracy at 0 dB, the model answered without reading the needle and that
+    item measures a prior, not a retrieval.
+    """
+    intact = [r for r in rows if r["level_db"] == 0.0 and r.get("role_chosen")]
+    removed = [r for r in rows if r["level_db"] == NEEDLE_REMOVED_DB
+               and r.get("role_chosen")]
+    if not intact or not removed:
+        return {"n_intact": len(intact), "n_removed": len(removed),
+                "acc_intact": float("nan"), "acc_removed": float("nan"),
+                "audio_dependence": float("nan")}
+    a = sum(r["role_chosen"] == r["correct_role"] for r in intact) / len(intact)
+    b = sum(r["role_chosen"] == r["correct_role"] for r in removed) / len(removed)
+    return {"n_intact": len(intact), "n_removed": len(removed),
+            "acc_intact": a, "acc_removed": b, "audio_dependence": a - b}
 
 
 def curve(rows: list[dict[str, Any]], levels: tuple[float, ...] = DEFAULT_LEVELS

@@ -446,8 +446,20 @@ if sweep_rows:
             grab = sum(r["role_chosen"] == "salience" for r in at) / len(at)
             acc = sum(r["role_chosen"] == "correct" for r in at) / len(at)
             print(f"  {lv:+6.1f} dB   salience={grab:.3f}  correct={acc:.3f}  n={len(at)}")
-    flip = sweep.flip_threshold(sweep_rows)
-    print(f"\\nflip threshold: {flip if flip == flip else 'never flips'} dB")
+    nec = sweep.needle_necessity(sweep_rows)
+    print(f"\\nneedle removed (-60 dB) control:")
+    print(f"  accuracy intact  {nec['acc_intact']:.3f}  (n={nec['n_intact']})")
+    print(f"  accuracy removed {nec['acc_removed']:.3f}  (n={nec['n_removed']})")
+    print(f"  audio dependence {nec['audio_dependence']:+.3f}"
+          "   <- at 0 the model never read the needle")
+    per_item = {}
+    for r in sweep_rows:
+        per_item.setdefault(r["item_id"], []).append(r)
+    flips = [sweep.flip_threshold(v) for v in per_item.values()]
+    flipped = [f for f in flips if f == f]
+    print(f"\\nitems flipped to the loud competitor: {len(flipped)}/{len(flips)}")
+    if flipped:
+        print(f"  median flip threshold {sorted(flipped)[len(flipped)//2]:+.1f} dB")
 print("done ->", SWEEP_OUT)
 """
 

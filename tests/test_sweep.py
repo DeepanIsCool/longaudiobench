@@ -177,3 +177,42 @@ class TestSweepIsActuallyWired:
         assert competitor_spans(it) == [], (
             "an item with no recorded competitor must be skipped, not swept - "
             "a salience trap cannot operate when the salient thing is absent")
+
+
+class TestRemovalControl:
+    """The first real sweep moved 3 of 70 answers over 12 dB with the gain edit
+    verifiably landing, and reported a 0.0 dB flip threshold for a model that
+    never flipped. Both were artefacts of the level set and the threshold rule.
+    """
+
+    def test_the_range_reaches_past_twelve_db(self):
+        from undertone.sweep import DEFAULT_LEVELS
+
+        assert min(l for l in DEFAULT_LEVELS if l > -60) <= -18.0, (
+            "-12 dB moved almost nothing; the curve needs range to find a "
+            "threshold")
+
+    def test_removal_control_is_present_and_off_curve(self):
+        from undertone.sweep import DEFAULT_LEVELS, NEEDLE_REMOVED_DB
+
+        assert NEEDLE_REMOVED_DB in DEFAULT_LEVELS
+        assert NEEDLE_REMOVED_DB <= -60.0, "the needle must be inaudible"
+
+    def test_already_lost_is_not_a_zero_db_flip(self):
+        from undertone.sweep import flip_threshold
+
+        rows = [{"level_db": 0.0, "role_chosen": "salience"},
+                {"level_db": -3.0, "role_chosen": "salience"}]
+        assert flip_threshold(rows) != 0.0, (
+            "an item answering salience before any attenuation was never "
+            "flipped by the sweep and must not report a 0 dB threshold")
+
+    def test_needle_necessity_measures_the_drop(self):
+        from undertone.sweep import NEEDLE_REMOVED_DB, needle_necessity
+
+        rows = [{"level_db": 0.0, "role_chosen": "correct", "correct_role": "correct"},
+                {"level_db": NEEDLE_REMOVED_DB, "role_chosen": "absent",
+                 "correct_role": "correct"}]
+        out = needle_necessity(rows)
+        assert out["acc_intact"] == 1.0 and out["acc_removed"] == 0.0
+        assert out["audio_dependence"] == 1.0
