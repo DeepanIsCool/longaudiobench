@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import json
+import pathlib
 import re
 import subprocess
 import sys
@@ -181,3 +182,26 @@ def test_no_pin_is_a_no_op_against_the_kaggle_image(notebooks):
                 major, minor = int(m.group(1)), int(m.group(2))
                 assert not (major == 5 and minor == 0), (
                     f"{name}: transformers>=5.0 is a no-op on the Kaggle image")
+
+
+class TestResultCollection:
+    """results/ was assembled from 71 ad-hoc directories mixing four
+    incompatible packs. The collector must sort by content, not by name."""
+
+    def test_canonical_set_matches_the_shipped_results(self):
+        import hashlib
+        import json
+
+        from scripts.collect_results import CANONICAL_ITEM_SET, item_set_id
+
+        for path in pathlib.Path("results").glob("*/results.jsonl"):
+            rows = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+            assert item_set_id(rows) == CANONICAL_ITEM_SET, (
+                f"{path} is not on the canonical pack and must not be filed")
+
+    def test_a_foreign_pack_is_rejected(self, tmp_path):
+        from scripts.collect_results import CANONICAL_ITEM_SET, item_set_id
+
+        foreign = [{"item_id": "not_a_real_item", "condition": "L1",
+                    "model_key": "m"}]
+        assert item_set_id(foreign) != CANONICAL_ITEM_SET
