@@ -271,3 +271,26 @@ class TestPinnedRunsWin:
         assert "code_sha" in src, (
             "the collector must compare runs on whether they recorded the "
             "commit they cloned, not only on how many cells they filled")
+
+
+class TestPinIsMatchedNotJustPresent:
+    """The pin moved from d1d3226 to pick up the sweep wiring. Treating any
+    recorded code_sha as "pinned" made the three runs at the old commit block
+    their own replacements, because the tie then fell to cell count."""
+
+    def test_collector_compares_against_the_current_pin(self):
+        src = pathlib.Path("scripts/collect_results.py").read_text()
+        assert "pinned_sha()" in src
+        assert 'r.get("code_sha") == pin' in src, (
+            "a run must match the current pin to count as pinned, not merely "
+            "carry some sha")
+
+    def test_the_pin_tag_resolves(self):
+        import subprocess
+
+        from scripts.collect_results import pinned_sha
+
+        if subprocess.run(["git", "rev-parse", "--git-dir"],
+                          capture_output=True).returncode != 0:
+            return
+        assert len(pinned_sha()) == 40, "paper-run-1 must resolve to a commit"

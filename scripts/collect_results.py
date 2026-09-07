@@ -22,6 +22,14 @@ from pathlib import Path
 
 CANONICAL_ITEM_SET = "512c3c690559"
 RESULTS = Path("results")
+CODE_PIN = "paper-run-1"
+
+
+def pinned_sha() -> str:
+    """The commit the paper table must be scored by, or "" outside a checkout."""
+    done = subprocess.run(["git", "rev-list", "-n", "1", CODE_PIN],
+                          capture_output=True, text=True)
+    return done.stdout.strip() if done.returncode == 0 else ""
 
 
 def item_set_id(rows: list[dict]) -> str:
@@ -92,8 +100,15 @@ def collect(user: str, config: str, slugs: list[str]) -> int:
                     # files predate code_sha and some carry duplicate cells from
                     # a double run, so "more usable cells" would keep an
                     # unattributable 332-row file over a clean pinned 280.
-                    incoming_pinned = any(r.get("code_sha") for r in rows)
-                    existing_pinned = any(r.get("code_sha") for r in old_rows)
+                    # Match the CURRENT pin, not merely "has some sha". The pin
+                    # moved once to pick up the sweep wiring, and treating any
+                    # recorded sha as pinned made three runs at the old commit
+                    # block their own replacements on cell count.
+                    pin = pinned_sha()
+                    incoming_pinned = bool(pin) and any(
+                        r.get("code_sha") == pin for r in rows)
+                    existing_pinned = bool(pin) and any(
+                        r.get("code_sha") == pin for r in old_rows)
                     if existing_pinned and not incoming_pinned:
                         print(f"{slug}: {model} is unpinned, keeping the "
                               "pinned run already on disk")
