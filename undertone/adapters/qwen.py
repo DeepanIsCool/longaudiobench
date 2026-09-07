@@ -95,8 +95,11 @@ class _Qwen25Omni(ModelAdapter):
                     self.model_id, **self.load_kwargs()))
                 self.loaded_via = "Thinker"
                 return
-            except Exception:  # noqa: BLE001 - fall back to the full model
-                pass
+            except Exception as exc:  # noqa: BLE001 - fall back to the full model
+                # Swallowed silently, this hid the difference between a 15 GB
+                # load and a 22.4 GB one for two days of failed runs.
+                print(f"[{self.key}] Thinker-only load failed, using the full "
+                      f"model: {type(exc).__name__}: {exc}")
 
         from transformers import Qwen2_5OmniForConditionalGeneration
 
@@ -105,6 +108,20 @@ class _Qwen25Omni(ModelAdapter):
         self.loaded_via = "full"
         if hasattr(self.model, "disable_talker"):
             self.model.disable_talker()
+        # disable_talker() only stops them running; the weights stay resident.
+        # talker and token2wav are 1102 of 2448 tensors and synthesise speech,
+        # which this benchmark never reads - it scores letter logits. Dropping
+        # them is what brings 22.4 GB back under the two-card budget.
+        import gc
+
+        import torch
+
+        for name in ("talker", "token2wav"):
+            if hasattr(self.model, name):
+                delattr(self.model, name)
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def build_inputs(self, audio: np.ndarray, prompt: str, sr: int = SAMPLE_RATE) -> dict:
         import torch
@@ -159,5 +176,6 @@ class Qwen25Omni7B(_Qwen25Omni):
     model_id = "Qwen/Qwen2.5-Omni-7B"
     max_audio_s = 1260.0
     needs_balancing = True
-    notes = ("Thinker only; ~14GB fp16. max_memory caps both T4s so the KV cache "
-             "has room -- the default split OOM'd at inference with 10 MiB free.")
+    notes = ("Checkpoint is 22.4 GB: thinker 1346 tensors, token2wav 809, talker "
+             "293. Only the thinker is read, so the other two are dropped after "
+             "load. Lopsided max_memory keeps cuda:0 free for encoder activations.")

@@ -38,6 +38,17 @@ SAMPLE_RATE = 16000
 # at 8 GiB leaves ~6.5 GiB, above the worst case seen.
 WEIGHT_BUDGET_GIB = 8
 
+# The balanced split is deliberately lopsided. device_map="auto" fills cuda:0
+# first, so the audio encoder lands there and its attention over five minutes of
+# audio is the largest allocation in the run - 6.07 GiB for Omni-7B, 6.16 for
+# Audio-Flamingo. An even 8/8 split left cuda:0 with 6.5 GiB and it still died,
+# because 8+8 GiB cannot hold weights of 22.4 GB (Omni-7B, thinker + talker +
+# token2wav) or 16.5 GB (Audio-Flamingo), so accelerate offloaded the remainder
+# to disk and staged it back through cuda:0 anyway. Giving cuda:0 less weight
+# and cuda:1 more holds both models outright and leaves ~9.5 GiB for activations.
+FIRST_GPU_BUDGET_GIB = 5
+SECOND_GPU_BUDGET_GIB = 13
+
 
 # --------------------------------------------------------------------------
 # helpers
@@ -230,8 +241,8 @@ class ModelAdapter(ABC):
                 # less headroom than leaving it uncapped. Omitting the key forces
                 # the split to stay on the two cards.
                 kwargs["device_map"] = "auto"
-                kwargs["max_memory"] = {0: f"{WEIGHT_BUDGET_GIB}GiB",
-                                        1: f"{WEIGHT_BUDGET_GIB}GiB"}
+                kwargs["max_memory"] = {0: f"{FIRST_GPU_BUDGET_GIB}GiB",
+                                        1: f"{SECOND_GPU_BUDGET_GIB}GiB"}
             else:
                 kwargs["device_map"] = self.hardware.device_map
         return kwargs
@@ -336,6 +347,10 @@ class ModelAdapter(ABC):
             "hardware": self.hardware.detail,
             "signature": self.hardware.signature,
             "hardware_blocked": self.hardware_blocked,
+            # Which class actually loaded. Omni-7B falls back from Thinker-only
+            # to the full 22.4 GB model on any exception, and without this the
+            # results gave no way to tell which had happened.
+            "loaded_via": getattr(self, "loaded_via", None),
             "versions": versions(),
         }
 

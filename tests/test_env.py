@@ -347,8 +347,25 @@ class TestBalancedSplitStaysOnTheGpus:
                 "GPU 0 instead of splitting across the two cards")
             assert 1 in max_memory, f"{key} must be given the second card"
 
-    def test_two_capped_gpus_hold_the_weights(self):
-        """~14 GiB of fp16 weights against two capped cards."""
-        from undertone.adapters.base import WEIGHT_BUDGET_GIB
+    def test_two_capped_gpus_hold_the_real_weights(self):
+        """Sizes read off the Hub, not the adapter notes.
 
-        assert 2 * WEIGHT_BUDGET_GIB > 14.0
+        The Omni-7B note claimed "~14GB fp16" - that is the Thinker alone. The
+        checkpoint is 22.4 GB (thinker + talker + token2wav), which is why an
+        8+8 GiB split offloaded to disk and kept failing.
+        """
+        from undertone.adapters.base import (FIRST_GPU_BUDGET_GIB,
+                                             SECOND_GPU_BUDGET_GIB)
+
+        budget = FIRST_GPU_BUDGET_GIB + SECOND_GPU_BUDGET_GIB
+        audio_flamingo_gib = 16.5 / 1.074
+        omni_thinker_gib = 22.4 * (1346 / 2448) / 1.074   # thinker's tensor share
+        assert budget > audio_flamingo_gib, "Audio-Flamingo will offload again"
+        assert budget > omni_thinker_gib, "Omni-7B Thinker will offload again"
+
+    def test_first_gpu_keeps_room_for_the_encoder(self):
+        """cuda:0 takes the audio encoder, so its activations are the largest."""
+        from undertone.adapters.base import FIRST_GPU_BUDGET_GIB
+
+        worst_activation = 6.16   # Audio-Flamingo at L3, measured
+        assert 14.56 - FIRST_GPU_BUDGET_GIB > worst_activation
