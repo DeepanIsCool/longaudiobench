@@ -258,3 +258,16 @@ class TestCollectorIgnoresTheClonedRepo:
         assert found == [], (
             "the clone's result files must not be treated as this run's output")
         assert CANONICAL_ITEM_SET  # the rule the collector applies after this
+
+
+class TestPinnedRunsWin:
+    def test_a_pinned_run_replaces_an_unattributable_one(self):
+        """Aero's existing file holds 332 usable rows - duplicate cells from a
+        double run - and a clean pinned 280 must still replace it. Provenance
+        beats cell count; without this the paper table keeps rows whose code
+        version is unknowable."""
+        src = pathlib.Path("scripts/collect_results.py").read_text()
+        assert "incoming_pinned" in src and "existing_pinned" in src
+        assert "code_sha" in src, (
+            "the collector must compare runs on whether they recorded the "
+            "commit they cloned, not only on how many cells they filled")

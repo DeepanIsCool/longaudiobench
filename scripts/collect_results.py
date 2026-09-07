@@ -85,10 +85,24 @@ def collect(user: str, config: str, slugs: list[str]) -> int:
                 out = RESULTS / model
                 out.mkdir(exist_ok=True)
                 existing = out / "results.jsonl"
-                if existing.exists() and usable(read_rows(existing)) >= usable(rows):
-                    print(f"{slug}: {model} {usable(rows)} cells, "
-                          f"keeping the better run already on disk")
-                    continue
+                if existing.exists():
+                    old_rows = read_rows(existing)
+                    # A run that records the commit it cloned always wins over
+                    # one that does not, whatever the cell counts say. The old
+                    # files predate code_sha and some carry duplicate cells from
+                    # a double run, so "more usable cells" would keep an
+                    # unattributable 332-row file over a clean pinned 280.
+                    incoming_pinned = any(r.get("code_sha") for r in rows)
+                    existing_pinned = any(r.get("code_sha") for r in old_rows)
+                    if existing_pinned and not incoming_pinned:
+                        print(f"{slug}: {model} is unpinned, keeping the "
+                              "pinned run already on disk")
+                        continue
+                    if (existing_pinned == incoming_pinned
+                            and usable(old_rows) >= usable(rows)):
+                        print(f"{slug}: {model} {usable(rows)} cells, "
+                              f"keeping the better run already on disk")
+                        continue
                 shutil.copy2(path, existing)
                 for extra in tmp.rglob("*summary*.json"):
                     shutil.copy2(extra, out / "summary.json")
