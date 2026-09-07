@@ -294,3 +294,14 @@ class TestPinIsMatchedNotJustPresent:
                           capture_output=True).returncode != 0:
             return
         assert len(pinned_sha()) == 40, "paper-run-1 must resolve to a commit"
+
+
+class TestCascadedControlIsCollected:
+    """02 ran 280 scorable rows and the collector refused to file them: it was
+    still in the infrastructure skip-list, so the audio-necessity arm sat in a
+    finished kernel with nowhere to land."""
+
+    def test_the_control_is_not_treated_as_infrastructure(self):
+        src = pathlib.Path("scripts/collect_results.py").read_text()
+        assert '{"00", "01", "90"}' in src, (
+            "02 is a scored arm, not infrastructure - it must be collected")

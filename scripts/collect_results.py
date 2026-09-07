@@ -143,8 +143,11 @@ def main() -> int:
         number = nb.stem.split("_")[0]
         if args.only and number not in args.only:
             continue
-        if number in {"00", "01", "02", "90"}:
-            continue  # infrastructure, not a model sweep
+        # 02 is the cascaded control - not a model, but a scored arm the paper
+        # needs, so it is collected like one. 00 smoke-tests, 01 builds the
+        # pack and 90 only reads what the others wrote.
+        if number in {"00", "01", "90"}:
+            continue
         slugs.append(f"undertone-{nb.stem.replace('_', '-')}")
     print(f"checking {len(slugs)} kernels on {args.user}")
     print(f"filed {collect(args.user, args.config, slugs)} runs")
