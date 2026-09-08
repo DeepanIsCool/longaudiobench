@@ -130,7 +130,7 @@ META = {
         # absent in 4.51.3 - so it is pinned too new and too old respectively.
         # 4.52.4 is the overlap: video_utils exists, the attention class survives.
         pip=["transformers==4.52.4", "accelerate>=1.0.0", "librosa>=0.10.2",
-             "soundfile>=0.12.1"],
+             "soundfile>=0.12.1", "timm>=1.0.9"],
         facts=[
             "Cheapest full-ladder run in the roster: ~4 GB leaves real headroom on one T4.",
             "Card recommends `flash_attention_2`; **T4 is sm75 so we use `sdpa`**.",

@@ -336,3 +336,20 @@ class TestNoFloorsOnPackagesThatHaveBrokenRuns:
                     offenders.append(f"{key}: {spec}")
         assert not offenders, (
             "these must be == pins, not floors: " + "; ".join(offenders))
+
+
+class TestGemmaDeclaresTimm:
+    """Gemma-3n's vision tower is a TimmWrapperModel - the same reason it needs
+    eager attention. Kaggle's image happens to ship timm, so the missing
+    declaration was invisible there and only surfaced on a plain PyTorch image:
+    "TimmWrapperModel requires the timm library but it was not found".
+    """
+
+    def test_both_gemmas_list_timm(self):
+        import sys
+        sys.path.insert(0, "scripts")
+        import make_notebooks as mk
+
+        for key in ("gemma3n_e2b", "gemma3n_e4b"):
+            pip = " ".join(mk.META[key]["pip"])
+            assert "timm" in pip, f"{key} loads a TimmWrapper but never asks for timm"
