@@ -216,3 +216,29 @@ class TestRemovalControl:
         out = needle_necessity(rows)
         assert out["acc_intact"] == 1.0 and out["acc_removed"] == 0.0
         assert out["audio_dependence"] == 1.0
+
+
+class TestQuestionOnlyBaseline:
+    """Plan section 13 lists this against "priors solve it". The -60 dB level
+    removes the needle but keeps the meeting; this removes the audio entirely.
+    Accuracy near chance is the result that makes every other number mean
+    something.
+    """
+
+    def test_it_feeds_silence_not_audio(self):
+        import inspect
+
+        from undertone.sweep import question_only
+
+        src = inspect.getsource(question_only)
+        assert "np.zeros" in src, "the control must pass silence, not the recording"
+        assert '"QUESTION_ONLY"' in src
+
+    def test_rows_carry_provenance(self):
+        import inspect
+
+        from undertone.sweep import question_only
+
+        src = inspect.getsource(question_only)
+        for field in ("pack_fingerprint", "code_sha", "correct_role"):
+            assert field in src, f"question-only rows must carry {field}"

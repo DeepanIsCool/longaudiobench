@@ -275,3 +275,65 @@ def run_sweep(adapter, pack, out_path, levels: tuple[float, ...] = DEFAULT_LEVEL
     if progress:
         print(f"[{adapter.key}] sweep wrote {written} rows to {out_path}")
     return out_path
+
+
+def question_only(adapter, pack, out_path, seed: int = 0, silence_s: float = 20.0,
+                  sr: int = SAMPLE_RATE, progress: bool = True):
+    """Score every item with silence instead of audio: the priors-solve-it control.
+
+    Plan section 13 lists this against the objection "priors solve it". The
+    -60 dB sweep level removes only the needle and leaves the meeting around it;
+    this removes the recording entirely, so anything above chance here is the
+    question and options leaking the answer on their own.
+
+    Accuracy at chance (0.25) is the result we want. Well above it would mean
+    the ladder is measuring a text prior, and no amount of audio analysis on top
+    would be meaningful.
+    """
+    import json
+    import os
+    from pathlib import Path
+
+    import numpy as np
+
+    from .ladder import window_for
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fingerprint = pack.fingerprint
+    silence = np.zeros(int(silence_s * sr), dtype=np.float32)
+    items = list(pack)
+    written = 0
+    with out_path.open("a", encoding="utf-8") as fh:
+        for n, item in enumerate(items, 1):
+            window = window_for(item, "L1")      # same prompt shape as L1
+            rendered = render(item, window, seed)
+            row = {
+                "item_id": item.item_id, "recording_id": item.recording_id,
+                "category": item.category, "lang": item.lang,
+                "model_key": adapter.key, "signature": adapter.hardware.signature,
+                "condition": "QUESTION_ONLY", "is_null": item.is_null,
+                "correct_role": item.correct_role,
+                "letter_to_role": rendered.letter_to_role,
+                "pack_fingerprint": fingerprint,
+                "code_sha": os.environ.get("UNDERTONE_CODE_SHA"), "error": None,
+            }
+            try:
+                from .scoring import argmax_letter, is_degenerate, letter_logits
+
+                scores = adapter.score_letters(silence, rendered.prompt, sr)
+                letter = argmax_letter(scores)
+                row.update(letter_chosen=letter,
+                           role_chosen=rendered.letter_to_role[letter],
+                           logit_degenerate=is_degenerate(scores))
+                row["correct"] = row["role_chosen"] == item.correct_role
+            except Exception as exc:  # noqa: BLE001 - one item must not kill the run
+                row.update(error=f"{type(exc).__name__}: {exc}", role_chosen=None,
+                           letter_chosen=None)
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            written += 1
+            if progress and n % 20 == 0:
+                print(f"  question-only {n}/{len(items)}", flush=True)
+    if progress:
+        print(f"[{adapter.key}] question-only wrote {written} rows", flush=True)
+    return out_path
