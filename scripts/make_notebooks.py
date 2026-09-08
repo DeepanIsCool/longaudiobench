@@ -108,6 +108,9 @@ META = {
     "gemma3n_e2b": dict(
         n=14, params="5.44B raw", vram="~11 GB", gpu="1xT4", gated=True,
         doc="https://huggingface.co/google/gemma-3n-E2B-it",
+        # TimmWrapper vision tower: needs timm explicitly. Kaggle
+        # images ship it, a plain PyTorch image does not.
+        pip=BASE_PIP + ["timm>=1.0.9"],
         facts=[
             "**Gated.** Accept the licence on the Hub, then add `HF_TOKEN` as a Kaggle secret.",
             "USM audio encoder ships configured for **30 s** at ~6.25 tokens/s (160 ms/token).",
@@ -118,6 +121,9 @@ META = {
     "gemma3n_e4b": dict(
         n=15, params="7.85B raw", vram="~16 GB", gpu="2xT4", gated=True,
         doc="https://huggingface.co/google/gemma-3n-E4B-it",
+        # TimmWrapper vision tower: needs timm explicitly. Kaggle
+        # images ship it, a plain PyTorch image does not.
+        pip=BASE_PIP + ["timm>=1.0.9"],
         facts=[
             "**Gated.** Same licence step as E2B.",
             "Same 30 s ceiling; 7.85B raw params, so it shards over both T4s.",
@@ -130,7 +136,7 @@ META = {
         # absent in 4.51.3 - so it is pinned too new and too old respectively.
         # 4.52.4 is the overlap: video_utils exists, the attention class survives.
         pip=["transformers==4.52.4", "accelerate>=1.0.0", "librosa>=0.10.2",
-             "soundfile>=0.12.1", "timm>=1.0.9"],
+             "soundfile>=0.12.1"],
         facts=[
             "Cheapest full-ladder run in the roster: ~4 GB leaves real headroom on one T4.",
             "Card recommends `flash_attention_2`; **T4 is sm75 so we use `sdpa`**.",
