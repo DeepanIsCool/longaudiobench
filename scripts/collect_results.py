@@ -21,6 +21,7 @@ import tempfile
 from pathlib import Path
 
 CANONICAL_ITEM_SET = "512c3c690559"
+PACK_FINGERPRINT = "56bd324cf6a3"
 RESULTS = Path("results")
 CODE_PIN = "paper-run-1"
 
@@ -33,6 +34,15 @@ def pinned_sha() -> str:
 
 
 def item_set_id(rows: list[dict]) -> str:
+    """Identify the pack a run scored against.
+
+    Prefer the fingerprint stamped on the row: an arm holding only L3 and L4 has
+    no L1 rows, so deriving the set from L1 item ids hashes the empty string and
+    rejects a perfectly canonical run.
+    """
+    stamped = {r.get("pack_fingerprint") for r in rows if r.get("pack_fingerprint")}
+    if len(stamped) == 1:
+        return CANONICAL_ITEM_SET if stamped == {PACK_FINGERPRINT} else stamped.pop()
     ids = sorted({r["item_id"] for r in rows if r.get("condition") == "L1"})
     return hashlib.sha256("".join(ids).encode()).hexdigest()[:12]
 

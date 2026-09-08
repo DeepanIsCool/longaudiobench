@@ -86,9 +86,17 @@ META = {
         n=13, params="5.57B", vram="~11 GB", gpu="1xT4",
         doc="https://huggingface.co/microsoft/Phi-4-multimodal-instruct",
         pip=["transformers==4.48.2", "accelerate>=0.34.0", "librosa>=0.10.2",
-             "soundfile>=0.12.1", "peft>=0.13.2", "backoff", "scipy",
-             # Its remote code rejects torchao below 0.16.
-             "torchao>=0.16.0"],
+             "soundfile>=0.12.1",
+             # EXACT, not a floor. ">=0.13.2" let a newer peft in and Phi-4's
+             # remote code died in get_peft_model: 'Phi4MMModel' object has no
+             # attribute 'prepare_inputs_for_generation'. Twice.
+             "peft==0.13.2", "backoff", "scipy",
+             # Its remote code rejects torchao below 0.16, but 0.16 demands a
+             # newer torch than the runner's base image and pip silently
+             # replaced torch - after which every later model failed with
+             # "module 'torch' has no attribute 'int1'". Held to a version that
+             # does not move torch; the runner also passes a constraints file.
+             "torchao==0.16.0"],
         facts=[
             "**Own transformers pin (4.48.2)** -- its remote code is version-sensitive.",
             "`_attn_implementation='eager'`; the card specifies this for pre-Ampere GPUs.",
@@ -202,7 +210,7 @@ META = {
         # musicflamingo is registered from transformers 5.15 onward. ">=5.0.0"
         # was a no-op: Kaggle's image already ships 5.0.0, so pip saw the
         # constraint satisfied and never upgraded.
-        pip=["transformers>=5.15.1", "accelerate>=1.0.0", "librosa>=0.10.2",
+        pip=["transformers==5.16.1", "accelerate>=1.0.0", "librosa>=0.10.2",
              "soundfile>=0.12.1"],
         facts=[
             "Only model whose documented ceiling reaches our longest band exactly: the "

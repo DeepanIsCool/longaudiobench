@@ -111,7 +111,10 @@ def test_models_needing_a_different_pin_get_one(notebooks):
     expected = {
         "phi4_multimodal": "transformers==4.48.2",      # version-sensitive remote code
         "aero_1_audio": "transformers==4.52.4",         # needs video_utils AND Qwen2AudioFlashAttention2
-        "audio_flamingo_next": "transformers>=5.15.1", # musicflamingo lands in 5.15
+        # Exact, not ">=5.15.1": a floor on transformers already resolved to
+        # 5.0.0 once and broke eight adapters. 5.16.1 is what its run resolved
+        # to and recorded in summary.json.
+        "audio_flamingo_next": "transformers==5.16.1",
     }
     for key, pin in expected.items():
         name = next(n for n in notebooks if n.endswith(f"{key}.ipynb"))
@@ -305,3 +308,31 @@ class TestCascadedControlIsCollected:
         src = pathlib.Path("scripts/collect_results.py").read_text()
         assert '{"00", "01", "90"}' in src, (
             "02 is a scored arm, not infrastructure - it must be collected")
+
+
+class TestNoFloorsOnPackagesThatHaveBrokenRuns:
+    """A floor is an unpinned upgrade path. Each package here caused a real
+    failure through one:
+
+    * transformers ">=4.57.1" resolved to 5.0.0 and broke eight adapters.
+    * peft ">=0.13.2" broke Phi-4 in get_peft_model, twice.
+    * torchao ">=0.16.0" replaced torch itself, and every model after it failed
+      with "module 'torch' has no attribute 'int1'" - eleven of thirteen in one
+      run.
+    """
+
+    BURNED = ("peft", "torchao", "transformers")
+
+    def test_burned_packages_are_pinned_exactly(self):
+        import sys
+        sys.path.insert(0, "scripts")
+        import make_notebooks as mk
+
+        offenders = []
+        for key, meta in mk.META.items():
+            for spec in meta.get("pip", []):
+                name = spec.split("=")[0].split(">")[0].split("[")[0]
+                if name in self.BURNED and ">=" in spec:
+                    offenders.append(f"{key}: {spec}")
+        assert not offenders, (
+            "these must be == pins, not floors: " + "; ".join(offenders))
