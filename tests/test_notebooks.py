@@ -32,11 +32,11 @@ def code_cells(nb: dict) -> list[str]:
     return ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
 
 
-def test_one_notebook_per_model_plus_four_shared(notebooks):
+def test_one_notebook_per_model_plus_six_shared(notebooks):
     """13 models, plus smoke test, item-pack build, cascaded control, analysis."""
     from undertone import adapters
 
-    assert len(notebooks) == len(adapters.list_adapters()) + 4 == 17
+    assert len(notebooks) == len(adapters.list_adapters()) + 6 == 19
     for shared in ("00_smoke_test.ipynb", "01_build_item_pack.ipynb",
                    "02_cascaded_control.ipynb", "90_analysis.ipynb"):
         assert shared in notebooks

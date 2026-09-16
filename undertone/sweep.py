@@ -51,6 +51,27 @@ from .ladder import Window
 NEEDLE_REMOVED_DB = -60.0
 DEFAULT_LEVELS = (0.0, -3.0, -6.0, -9.0, -12.0, -18.0, -24.0, NEEDLE_REMOVED_DB)
 
+# The stimulus audit on the first full sweep (achieved_contrast_db, identical
+# across models because it measures the audio) showed the requested dose is
+# delivered to within 0.5 dB from 0 to -12 and falls 34 dB short at "-60":
+# the recording's own noise floor bounds how quiet the needle can be made.
+# So the calibrated region is 0..-12, and that is where a psychometric curve
+# can be fitted honestly. 2 dB steps give it resolution.
+CALIBRATED_LEVELS = (0.0, -2.0, -4.0, -6.0, -8.0, -10.0, -12.0)
+
+# Boosting is the other half of a causal claim. Attenuating the needle shows
+# that losing prominence breaks retrieval; only raising it can show that
+# prominence is what was missing. Clip protection in apply_gain_edits is
+# scoped to the edited span, so +9 cannot rescale the rest of the recording.
+BOOST_LEVELS = (0.0, 3.0, 6.0, 9.0)
+
+# What the gain edit is applied to. "needle" is the original experiment.
+# "competitor" attenuates the loud mention instead and leaves the needle
+# alone: if accuracy rises when the loud thing gets quieter, the prior is
+# about *relative* prominence; if it does not, the needle's own audibility is
+# the whole story. Together with the needle arm this is a 2x2 nobody has.
+EDIT_TARGETS = ("needle", "competitor")
+
 CONTRAST_PAD = 3.0      # seconds of context either side of the two mentions
 MAX_CONTRAST_WINDOW = 90.0
 
@@ -86,19 +107,32 @@ def contrast_window(item: MCQItem, competitor_start: float,
 def sweep_item(adapter, item: MCQItem, audio: np.ndarray, window: Window,
                competitor_spans: list[tuple[float, float]],
                levels: tuple[float, ...] = DEFAULT_LEVELS,
-               seed: int = 0, sr: int = SAMPLE_RATE) -> list[dict[str, Any]]:
-    """Score one item at each attenuation level. Returns one row per level."""
+               seed: int = 0, sr: int = SAMPLE_RATE,
+               edit_target: str = "needle") -> list[dict[str, Any]]:
+    """Score one item at each gain level. Returns one row per level.
+
+    ``edit_target`` picks which span the gain is applied to. The contrast
+    measurement is always competitor-minus-needle regardless (positive = the
+    trap is set), so the needle arm drives it *up* and the competitor arm
+    drives it *down*. A reader gets the arm from ``edit_target`` on the row,
+    never by inferring it from the sign.
+    """
+    if edit_target not in EDIT_TARGETS:
+        raise ValueError(f"edit_target must be one of {EDIT_TARGETS}, got {edit_target!r}")
     rendered = render(item, window, seed)
-    target = (item.needle_start - window.start, item.needle_end - window.start)
+    needle = (item.needle_start - window.start, item.needle_end - window.start)
     local_competitors = [(s - window.start, e - window.start)
                          for s, e in competitor_spans
                          if window.start <= s and e <= window.end]
+    if edit_target == "competitor" and not local_competitors:
+        raise ValueError(f"{item.item_id}: no competitor in window to edit")
+    edited_span = needle if edit_target == "needle" else local_competitors[0]
 
     rows: list[dict[str, Any]] = []
     for level in levels:
         edited = audio if level == 0.0 else apply_gain_edits(
-            audio, [GainEdit(target[0], target[1], level)], sr)
-        contrast = (measure_contrast(edited, target, local_competitors[0], sr)
+            audio, [GainEdit(edited_span[0], edited_span[1], level)], sr)
+        contrast = (measure_contrast(edited, needle, local_competitors[0], sr)
                     if local_competitors else float("nan"))
 
         row: dict[str, Any] = {
@@ -109,6 +143,7 @@ def sweep_item(adapter, item: MCQItem, audio: np.ndarray, window: Window,
             "model_key": adapter.key,
             "signature": adapter.hardware.signature,
             "condition": "SWEEP",
+            "edit_target": edit_target,
             "level_db": level,
             "achieved_contrast_db": contrast,
             "competitors_in_window": len(local_competitors),
@@ -218,12 +253,16 @@ def competitor_spans(item: MCQItem) -> list[tuple[float, float]]:
 
 
 def run_sweep(adapter, pack, out_path, levels: tuple[float, ...] = DEFAULT_LEVELS,
-              seed: int = 0, audio_root: str = ".", progress: bool = True):
-    """Score every sweepable item at every attenuation level.
+              seed: int = 0, audio_root: str = ".", progress: bool = True,
+              edit_target: str = "needle"):
+    """Score every sweepable item at every gain level.
 
     Mirrors runner.run_model: appends one row per (item, level), resumes from
     what is already on disk, and stamps the pack fingerprint and code sha so a
-    curve cannot silently mix item packs or code versions.
+    curve cannot silently mix item packs or code versions. Resume is keyed on
+    (item, level, edit_target), so the needle and competitor arms can share a
+    file without one marking the other done. Rows written before edit_target
+    existed carry no such field and are treated as the needle arm.
     """
     import json
     import os
@@ -247,24 +286,28 @@ def run_sweep(adapter, pack, out_path, levels: tuple[float, ...] = DEFAULT_LEVEL
             except json.JSONDecodeError:
                 continue
             if row.get("pack_fingerprint") == fingerprint and not row.get("error"):
-                done.add((row["item_id"], row.get("level_db")))
+                done.add((row["item_id"], row.get("level_db"),
+                          row.get("edit_target", "needle")))
 
     skipped = len(list(pack)) - len(items)
     if progress:
-        print(f"[{adapter.key}] sweep: {len(items)} items x {len(levels)} levels, "
-              f"{skipped} items have no recorded competitor and are skipped")
+        print(f"[{adapter.key}] sweep[{edit_target}]: {len(items)} items x "
+              f"{len(levels)} levels, {skipped} items have no recorded competitor "
+              f"and are skipped")
 
     written = 0
     with out_path.open("a", encoding="utf-8") as fh:
         for n, item in enumerate(items, 1):
-            todo = [lv for lv in levels if (item.item_id, lv) not in done]
+            todo = [lv for lv in levels
+                    if (item.item_id, lv, edit_target) not in done]
             if not todo:
                 continue
             audio = load_audio(os.path.join(audio_root, item.audio_path))
             window = contrast_window(item, *competitor_spans(item)[0])
             clip = audio[int(window.start * SAMPLE_RATE):int(window.end * SAMPLE_RATE)]
             for row in sweep_item(adapter, item, clip, window,
-                                  competitor_spans(item), tuple(todo), seed):
+                                  competitor_spans(item), tuple(todo), seed,
+                                  edit_target=edit_target):
                 row["pack_fingerprint"] = fingerprint
                 row["code_sha"] = os.environ.get("UNDERTONE_CODE_SHA")
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")

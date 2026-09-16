@@ -30,7 +30,7 @@ REPO_URL = "https://github.com/DeepanIsCool/longaudiobench.git"
 # kernel, and no two models are guaranteed to have been scored by the same code.
 # git clone --depth 1 --branch takes a tag or a branch but not a bare sha, so the
 # pin is a tag. Move it deliberately, never as a side effect of committing.
-REPO_REF = "paper-run-1"
+REPO_REF = "paper-run-2"
 ITEM_PACK_DATASET = "undertone-item-pack"
 
 # HARD pin, not a floor. ">=4.57.1" resolved to transformers 5.0.0 on Kaggle and
@@ -792,19 +792,15 @@ CELL_BUILD = """\
 # Measured yield is ~3.5 usable proposals per AMI meeting, so 180 items needs
 # roughly 50 meetings.
 LANGS = "en"
-# More meetings, because capping the band at 10 min means only needles inside
-# each meeting's first 10 minutes qualify - roughly a third of the previous
-# yield per meeting.
-N_MEETINGS = 60
 
 # Build the list here, not in a $(...) subshell: the subshell does not inherit
 # this notebook's sys.path, so the import fails silently, --meetings gets an
 # empty list, and the harvest runs over zero meetings.
 from undertone.harvest.sources import AMI_SCENARIO_MEETINGS
-MEETINGS = " ".join(AMI_SCENARIO_MEETINGS[:N_MEETINGS])
-print(f"harvesting {N_MEETINGS} meetings: {MEETINGS[:80]}...")
-
-!python /kaggle/working/longaudiobench/scripts/build_item_pack.py --out /kaggle/working/item_pack --audio-cache /kaggle/temp/source_audio --langs {LANGS} --target 180 --meetings {MEETINGS}
+MEETINGS = " ".join({meetings_expr})
+print(f"harvesting {{len(MEETINGS.split())}} meetings: {{MEETINGS[:80]}}...")
+{extra_setup}
+!python /kaggle/working/longaudiobench/scripts/build_item_pack.py --out /kaggle/working/item_pack --audio-cache /kaggle/temp/source_audio --langs {{LANGS}} --target {target} --meetings {{MEETINGS}}{extra_args}
 """
 
 CELL_LEAK = """\
@@ -1176,7 +1172,64 @@ def build_item_pack_notebook() -> dict:
             for p in BASE_PIP + ["datasets>=2.19.0", "faster-whisper>=1.0.0"]))),
         code(CELL_ENV.format(token_block="")),
         code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
-        code(CELL_BUILD),
+        code(CELL_BUILD.format(meetings_expr="AMI_SCENARIO_MEETINGS[:60]",
+                               target=180, extra_setup="", extra_args="")),
+        code(CELL_LEAK),
+        code(CELL_RECOVERY),
+        code(CELL_LEAKRUN),
+        code(CELL_QONLY),
+        code(CELL_VERIFY),
+    ])
+
+
+EXPAND_HEADER = """# UNDERTONE - expansion pack ({group})
+
+The first pack is 70 items from 60 meetings, and the leak filter rejects 60%
+of what the harvest proposes, so the yield is about one usable item per
+meeting. This notebook harvests the meetings the first pack did **not** use -
+and, for meetings it did use, only the windows it did not take - so the two
+packs merge at analysis time with nothing scored twice. Categories are
+reweighted toward the thin ones: C1 (9 items), P1 (8) and P2 (11) are what
+the model-level sign tests could not settle at the first pack's size.
+
+AMI's scenario meetings are split across two notebooks so each fits Kaggle's
+12 h session: this one covers **{group}**. Run both, then merge.
+
+The original `undertone-item-pack` dataset must be attached (Add Input ->
+Datasets) - `--exclude-pack` reads it.
+
+Everything it writes is `verified: false`, exactly as the first pack was.
+"""
+
+# Categories the first pack left thin get the weight. P3 and P4 are the
+# abundant ones and already carry 42 of 70 items.
+EXPAND_SHARE = "C1=0.30,P1=0.25,P2=0.25,P3=0.10,P4=0.10"
+
+# Well above any plausible yield, so balance() never caps a thin category
+# before the leak filter has had its say.
+EXPAND_TARGET = 400
+
+EXPAND_SETUP = """
+import glob
+_prior = sorted(glob.glob("/kaggle/input/**/item_pack.jsonl", recursive=True))
+assert _prior, ("attach the original undertone-item-pack dataset: --exclude-pack "
+                "needs it, or this run re-harvests windows already scored")
+PRIOR_PACK = _prior[0]
+print(f"excluding windows from {PRIOR_PACK}")"""
+
+
+def build_expand_notebook(group: str, meetings_expr: str) -> dict:
+    return notebook([
+        md(EXPAND_HEADER.format(group=group)),
+        code(CELL_PIP.format(pips="\n".join(
+            f'%pip install -q "{p}"'
+            for p in BASE_PIP + ["datasets>=2.19.0", "faster-whisper>=1.0.0"]))),
+        code(CELL_ENV.format(token_block="")),
+        code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
+        code(CELL_BUILD.format(
+            meetings_expr=meetings_expr, target=EXPAND_TARGET,
+            extra_setup=EXPAND_SETUP,
+            extra_args=f" --exclude-pack {{PRIOR_PACK}} --share {EXPAND_SHARE}")),
         code(CELL_LEAK),
         code(CELL_RECOVERY),
         code(CELL_LEAKRUN),
@@ -1210,9 +1263,16 @@ def main() -> int:
         raise SystemExit(f"no notebook metadata for adapters: {missing}")
 
     written = []
+    # AMI_SCENARIO_MEETINGS is ES (60) + IS (40) + TS (40). The first pack used
+    # ES[:60] = all of ES. IS+TS is 80 unseen meetings; ES contributes only its
+    # windows the first pack did not take. Split so each fits a 12 h session.
     for name, builder in (("00_smoke_test", build_smoke_notebook),
                           ("01_build_item_pack", build_item_pack_notebook),
                           ("02_cascaded_control", build_cascaded_notebook),
+                          ("03_expand_pack_ists", lambda: build_expand_notebook(
+                              "IS + TS, 80 meetings", "AMI_SCENARIO_MEETINGS[60:]")),
+                          ("04_expand_pack_es", lambda: build_expand_notebook(
+                              "ES, unused windows of 60 meetings", "AMI_SCENARIO_MEETINGS[:60]")),
                           ("90_analysis", build_analysis_notebook)):
         path = args.out / f"{name}.ipynb"
         path.write_text(json.dumps(builder(), indent=1), encoding="utf-8")
@@ -1225,7 +1285,8 @@ def main() -> int:
 
     for path in written:
         print(f"wrote {path}")
-    print(f"\n{len(written)} notebooks ({len(keys)} models + smoke test, item-pack build, cascaded control and analysis)")
+    print(f"\n{len(written)} notebooks ({len(keys)} models + smoke test, item-pack build, "
+          f"two expansion packs, cascaded control and analysis)")
     return 0
 
 

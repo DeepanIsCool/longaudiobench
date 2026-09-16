@@ -57,14 +57,22 @@ MAX_CONSTRUCTED_PER_WINDOW = 2   # keep the arm a minority of P3, not a flood
 
 
 def harvest_recording(recording: sources.Recording, audio, band: int,
-                      with_f0: bool) -> list[tuple[sources.Recording, list[MCQItem], object]]:
+                      with_f0: bool, exclude: frozenset[str] = frozenset(),
+                      ) -> list[tuple[sources.Recording, list[MCQItem], object]]:
     """Every band-length window of a recording, each harvested separately.
 
     Returns (window, items) pairs so the caller can write one audio file per
     window. A 40-minute meeting is four 10-minute haystacks, not one.
+
+    ``exclude`` holds window ids already in a scored pack. They are skipped
+    here, before the pitch pass, which is most of the harvest's runtime -
+    filtering them after features would spend the same hours to throw the
+    result away.
     """
     out = []
     for window in recording.windows(band):
+        if window.recording_id in exclude:
+            continue
         offset = int(window.meta["window_start"] * SAMPLE_RATE)
         chunk = audio[offset: offset + band * SAMPLE_RATE]
         if len(chunk) < band * SAMPLE_RATE * 0.9:
@@ -175,7 +183,11 @@ def collect_recordings(langs: list[str], meetings: list[str], per_lang: int,
         tables = sources.ami_segments_from_annotations(meetings, ann_dir)
         print(f"  transcripts for {len(tables)} meetings")
         for meeting, segments in sorted(tables.items()):
-            wav = sources.download_ami_audio(meeting, str(audio_cache / "ami"))
+            try:
+                wav = sources.download_ami_audio(meeting, str(audio_cache / "ami"))
+            except Exception as exc:  # noqa: BLE001 - one 404 must not end a 9 h harvest
+                print(f"  {meeting}: no audio ({type(exc).__name__}), skipping")
+                continue
             out.append((sources.Recording(
                 recording_id=meeting, audio_path="", lang="en", sector="meetings",
                 duration=0.0, segments=segments), wav))
@@ -206,7 +218,35 @@ def main() -> int:
                          "can hold ~45k audio tokens of attention")
     ap.add_argument("--no-f0", action="store_true",
                     help="skip the pitch pass (faster; disables P3 detection)")
+    ap.add_argument("--exclude-pack", type=Path, action="append", default=[],
+                    help="item_pack.jsonl whose windows must not be reused. Give "
+                         "it the pack already scored so the expansion adds new "
+                         "windows only and the two packs can be merged at "
+                         "analysis time without any item being scored twice. "
+                         "Repeatable.")
+    ap.add_argument("--share", default="",
+                    help="override CATEGORY_SHARE, e.g. C1=0.30,P1=0.25,P2=0.25,"
+                         "P3=0.10,P4=0.10. The first pack came out C1=9, P1=8, "
+                         "P2=11 - the thin categories the sign tests could not "
+                         "settle - so an expansion pack should weight them.")
     args = ap.parse_args()
+
+    if args.share:
+        override = dict(kv.split("=") for kv in args.share.split(","))
+        unknown = set(override) - set(CATEGORY_SHARE)
+        if unknown:
+            ap.error(f"--share: unknown categories {sorted(unknown)}")
+        CATEGORY_SHARE.update({k: float(v) for k, v in override.items()})
+        total = sum(CATEGORY_SHARE.values())
+        if abs(total - 1.0) > 1e-6:
+            ap.error(f"--share must sum to 1.0, got {total:.3f}")
+
+    excluded_windows: set[str] = set()
+    for prior in args.exclude_pack:
+        excluded_windows |= {i.recording_id for i in ItemPack.load(prior)}
+    if excluded_windows:
+        print(f"excluding {len(excluded_windows)} windows already in "
+              f"{[str(p) for p in args.exclude_pack]}")
 
     import librosa
 
@@ -240,7 +280,8 @@ def main() -> int:
         # is a haystack.
         audio, _ = librosa.load(source_path, sr=SAMPLE_RATE, mono=True)
 
-        harvested = harvest_recording(recording, audio, band, with_f0=not args.no_f0)
+        harvested = harvest_recording(recording, audio, band, with_f0=not args.no_f0,
+                                      exclude=frozenset(excluded_windows))
         total_windows += len(harvested)
         n = sum(len(items) for _, items, _ in harvested)
         print(f"{recording.recording_id} [{recording.lang}]: {duration / 60:.0f} min "

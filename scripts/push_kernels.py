@@ -113,6 +113,7 @@ def main() -> int:
 
     for path in paths:
         # 01 builds the pack, so it cannot depend on it; 00 needs no items.
+        # 03/04 build a *second* pack and attach the first for --exclude-pack.
         attach = path.stem not in {"00_smoke_test", "01_build_item_pack"}
         meta = metadata(args.user, path, attach)
 

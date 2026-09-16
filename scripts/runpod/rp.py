@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""Runpod control with a hard spend ceiling.
+
+The danger is not a failed run, it is a pod nobody stopped. Every launch here
+carries a wall-clock deadline and the watchdog terminates on it whether the
+work finished or not. Balance is checked before each launch and never assumed.
+
+Credentials come from the environment, never from this file:
+
+    RUNPOD_API_KEY   required
+    HF_TOKEN         forwarded into the pod's environment at launch
+    KAGGLE_JSON      contents of kaggle.json, forwarded likewise
+
+README.md in this directory has the three export lines that load them from
+the gitignored files at the repo root. Nothing here is ever written with a
+literal token in it - the repo is public and a pushed key is scraped within
+minutes.
+
+    python scripts/runpod/rp.py status
+    python scripts/runpod/rp.py guard
+    python scripts/runpod/rp.py launch --name exp2 --script experiments/02_prominence_2x2.sh
+    python scripts/runpod/rp.py kill
+"""
+import argparse
+import json
+import os
+import subprocess
+import sys
+
+REST = "https://rest.runpod.io/v1"
+GQL = "https://api.runpod.io/graphql"
+
+# A reserve, not a budget: refuse to launch unless this much is still on the
+# account after the planned spend. It was set to 6.00 when the balance was
+# 10.00 and then blocked a $1 job at a 5.64 balance; the ceiling has to track
+# what is left, not what there was. Override per launch with --reserve.
+DEFAULT_RESERVE_USD = 2.00
+DEFAULT_GPU = "NVIDIA A40"          # 48 GB; the 300 s forward pass peaks at 19.4 GiB
+DEFAULT_IMAGE = "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04"
+REPO = "https://github.com/DeepanIsCool/longaudiobench.git"
+
+
+def key():
+    k = os.environ.get("RUNPOD_API_KEY")
+    if not k:
+        sys.exit("RUNPOD_API_KEY is not set. See scripts/runpod/README.md.")
+    return k
+
+
+def _curl(args, timeout=60):
+    out = subprocess.run(["curl", "-s", "--max-time", str(timeout)] + args,
+                         capture_output=True, text=True, timeout=timeout + 15)
+    try:
+        return json.loads(out.stdout or "{}")
+    except json.JSONDecodeError:
+        return {"_raw": out.stdout, "_err": out.stderr}
+
+
+def gql(query):
+    return _curl(["-X", "POST", GQL, "-H", f"Authorization: Bearer {key()}",
+                  "-H", "Content-Type: application/json",
+                  "-d", json.dumps({"query": query})])
+
+
+def balance():
+    d = gql("query { myself { clientBalance currentSpendPerHr } }")
+    me = (d.get("data") or {}).get("myself") or {}
+    return me.get("clientBalance"), me.get("currentSpendPerHr")
+
+
+def pods():
+    d = _curl(["-H", f"Authorization: Bearer {key()}", f"{REST}/pods"])
+    return d if isinstance(d, list) else d.get("pods", [])
+
+
+def terminate(pod_id):
+    subprocess.run(["curl", "-s", "-X", "DELETE", "--max-time", "60",
+                    "-H", f"Authorization: Bearer {key()}", f"{REST}/pods/{pod_id}"],
+                   capture_output=True, text=True, timeout=75)
+    return pod_id
+
+
+def kill_all():
+    """Stop everything. Safe to run at any time, including twice."""
+    killed = [terminate(p["id"]) for p in pods()]
+    print(f"terminated {len(killed)} pod(s): {killed or '(none were running)'}")
+    return killed
+
+
+def guard(reserve=DEFAULT_RESERVE_USD, planned=0.0):
+    """Refuse to launch when balance - planned spend would breach the reserve."""
+    bal, rate = balance()
+    print(f"balance ${bal}   current spend ${rate}/hr")
+    if bal is None:
+        sys.exit("could not read balance - not launching")
+    if bal - planned < reserve:
+        sys.exit(f"balance ${bal} minus planned ${planned:.2f} is under the "
+                 f"${reserve:.2f} reserve - not launching")
+    live = pods()
+    if live:
+        sys.exit(f"{len(live)} pod already running: {[p['id'] for p in live]}. "
+                 "Stop it before launching another.")
+    print("guard passed: balance sufficient, no pods running")
+
+
+def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
+           disk_gb=40, reserve=DEFAULT_RESERVE_USD, planned=0.0, ref="main"):
+    """Create one pod that clones the repo at `ref` and runs `script`.
+
+    Secrets reach the pod as environment variables set on the pod itself,
+    which Runpod stores encrypted. The start command below never contains
+    them; it reads them from the environment the same way the local scripts
+    do.
+
+    NOTE: the create-pod body follows the REST v1 schema as of the last run.
+    If Runpod rejects a field name, check https://rest.runpod.io/v1 docs -
+    the API has renamed fields before and this file cannot be tested
+    without a live key.
+    """
+    guard(reserve, planned)
+    hf = os.environ.get("HF_TOKEN", "")
+    kg = os.environ.get("KAGGLE_JSON", "")
+    if not hf:
+        print("warning: HF_TOKEN unset; gated models (Gemma, Llama) will fail")
+    start = (
+        "bash -lc '"
+        f"git clone --depth 1 --branch {ref} {REPO} /workspace/repo && "
+        "cd /workspace/repo && export UNDERTONE_CODE_SHA=$(git rev-parse HEAD) && "
+        f"bash {script}'"
+    )
+    body = {
+        "name": name,
+        "imageName": image,
+        "gpuTypeIds": [gpu],
+        "gpuCount": 1,
+        "cloudType": "COMMUNITY",
+        "volumeInGb": volume_gb,
+        "volumeMountPath": "/workspace",
+        "containerDiskInGb": disk_gb,
+        "ports": ["8000/http"],
+        "env": {
+            "HF_TOKEN": hf, "HUGGING_FACE_HUB_TOKEN": hf,
+            "KAGGLE_JSON": kg,
+            "HF_HOME": "/workspace/hf",
+            "UNDERTONE_ASR_CACHE": "/workspace/asr_cache",
+            "PYTORCH_ALLOC_CONF": "expandable_segments:True",
+            "TOKENIZERS_PARALLELISM": "false",
+        },
+        "dockerStartCmd": ["bash", "-lc", start],
+    }
+    d = _curl(["-X", "POST", f"{REST}/pods", "-H", f"Authorization: Bearer {key()}",
+               "-H", "Content-Type: application/json", "-d", json.dumps(body)], 120)
+    pod_id = d.get("id")
+    if not pod_id:
+        sys.exit(f"launch failed: {json.dumps(d)[:600]}")
+    print(f"launched {pod_id}  {name}  {gpu}")
+    print(f"  proxy: https://{pod_id}-8000.proxy.runpod.net/")
+    print(f"  now run:  python scripts/runpod/watchdog.py {pod_id} <expected_ok> <deadline_min>")
+    print(f"       and:  python scripts/runpod/pull.py {pod_id} --dest results/{name}")
+    return pod_id
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("status")
+    sub.add_parser("kill")
+    g = sub.add_parser("guard")
+    g.add_argument("--reserve", type=float, default=DEFAULT_RESERVE_USD)
+    g.add_argument("--planned", type=float, default=0.0)
+    l = sub.add_parser("launch")
+    l.add_argument("--name", required=True)
+    l.add_argument("--script", required=True, help="repo-relative bash script the pod runs")
+    l.add_argument("--gpu", default=DEFAULT_GPU)
+    l.add_argument("--image", default=DEFAULT_IMAGE)
+    l.add_argument("--ref", default="main", help="git ref to clone; use a tag for paper runs")
+    l.add_argument("--reserve", type=float, default=DEFAULT_RESERVE_USD)
+    l.add_argument("--planned", type=float, default=0.0,
+                   help="expected spend of this launch; guard refuses if it breaches the reserve")
+    a = ap.parse_args()
+    if a.cmd == "status":
+        bal, rate = balance()
+        ps = pods()
+        print(f"balance ${bal}   spend ${rate}/hr   pods running: {len(ps)}")
+        for p in ps:
+            print(f"  {p['id']}  {p.get('name')}  {p.get('desiredStatus')}  "
+                  f"{p.get('machine', {}).get('gpuDisplayName', '?')}")
+    elif a.cmd == "kill":
+        kill_all()
+    elif a.cmd == "guard":
+        guard(a.reserve, a.planned)
+    elif a.cmd == "launch":
+        launch(a.name, a.script, a.gpu, a.image, reserve=a.reserve,
+               planned=a.planned, ref=a.ref)
+
+
+if __name__ == "__main__":
+    main()

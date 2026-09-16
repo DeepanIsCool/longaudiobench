@@ -30,6 +30,13 @@ from .base import SAMPLE_RATE, ModelAdapter, as_temp_wav, primary_device, regist
 
 TEXT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
+# Where windowed transcripts are cached, keyed on (ASR model, language, audio
+# bytes). Every text twin re-transcribes the same 280 windows otherwise, and
+# Whisper on a 300 s window is most of a twin's runtime. The cache is a
+# property of the audio and the ASR model, never of the text model, so
+# sharing it across twins changes nothing they see.
+ASR_CACHE_ENV = "UNDERTONE_ASR_CACHE"
+
 PROMPT = {
     "en": ("Read the transcript and answer the question about it.\n"
            "Reply with the letter of the correct option and nothing else.\n\n"
@@ -81,9 +88,20 @@ class CascadedWhisperLLM(ModelAdapter):
         models are. Handing it a full-recording transcript at L1 would make it a
         different, easier condition.
         """
+        import hashlib
         import os
+        from pathlib import Path
 
         from ..harvest.asr import _engine
+
+        cache_dir = os.environ.get(ASR_CACHE_ENV)
+        cache = None
+        if cache_dir:
+            key = hashlib.sha1(np.ascontiguousarray(audio, dtype=np.float32).tobytes())
+            key.update(f"|{self.asr_model}|{self.lang}|{sr}".encode())
+            cache = Path(cache_dir) / f"{key.hexdigest()}.txt"
+            if cache.exists():
+                return cache.read_text(encoding="utf-8")
 
         path = as_temp_wav(audio, sr)
         try:
@@ -92,12 +110,16 @@ class CascadedWhisperLLM(ModelAdapter):
                 condition_on_previous_text=False,
                 vad_filter=False,   # VAD drops exactly the quiet needles we study
             )
-            return " ".join(s.text.strip() for s in segments if s.text).strip()
+            text = " ".join(s.text.strip() for s in segments if s.text).strip()
         finally:
             try:
                 os.unlink(path)
             except OSError:
                 pass
+        if cache is not None:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(text, encoding="utf-8")
+        return text
 
     def build_inputs(self, audio: np.ndarray, prompt: str, sr: int = SAMPLE_RATE) -> dict:
         transcript = self.transcribe_window(audio, sr) or "(no speech transcribed)"
@@ -109,3 +131,38 @@ class CascadedWhisperLLM(ModelAdapter):
         inputs = self.tokenizer(chat, return_tensors="pt")
         self.last_transcript = transcript
         return {k: v.to(primary_device(self.model)) for k, v in inputs.items()}
+
+
+# Further text twins behind the identical Whisper front end. The first control
+# is the text twin of Qwen2.5-Omni-7B, which makes it the right comparison for
+# that one model and no other. These generalise the salience-prior result
+# across language-model families: if every twin grabs the loud competitor
+# on C1 more than its audio counterpart does, the prior is a property of
+# text LLMs, not of one lab's post-training. Same ASR, same prompt, same
+# scoring; only ``text_model`` differs.
+#
+# They share the transcript cache (ASR_CACHE_ENV), so after the first twin has
+# run, the others pay only for the text model.
+
+@register
+class CascadedWhisperLlama(CascadedWhisperLLM):
+    key = "cascaded_whisper_llama31_8b"
+    text_model = "meta-llama/Llama-3.1-8B-Instruct"
+    model_id = f"{DEFAULT_MODEL} + {text_model}"
+    notes = "Text twin #2. Gated on the Hub; needs HF_TOKEN with Llama access."
+
+
+@register
+class CascadedWhisperMistral(CascadedWhisperLLM):
+    key = "cascaded_whisper_mistral_7b"
+    text_model = "mistralai/Mistral-7B-Instruct-v0.3"
+    model_id = f"{DEFAULT_MODEL} + {text_model}"
+    notes = "Text twin #3."
+
+
+@register
+class CascadedWhisperGemma2(CascadedWhisperLLM):
+    key = "cascaded_whisper_gemma2_9b"
+    text_model = "google/gemma-2-9b-it"
+    model_id = f"{DEFAULT_MODEL} + {text_model}"
+    notes = "Text twin #4. Gated on the Hub."

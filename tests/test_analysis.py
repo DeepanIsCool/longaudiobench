@@ -315,3 +315,58 @@ class TestPackMixingGuard:
 
     def test_rows_without_a_fingerprint_are_not_blocked(self):
         assert len(analysis.usable([row(), row()])) == 2
+
+
+def srow(model="m", level=0.0, role="correct", arm="needle", null=False):
+    return {"model_key": model, "level_db": level, "role_chosen": role,
+            "correct_role": "absent" if null else "correct", "is_null": null,
+            "edit_target": arm, "error": None}
+
+
+class TestSignTest:
+    def test_twelve_of_twelve_is_significant(self):
+        r = analysis.sign_test([(0.5, 0.3)] * 12)
+        assert (r["up"], r["down"]) == (0, 12) and r["p"] == pytest.approx(0.0005, abs=1e-4)
+
+    def test_nine_of_twelve_is_not(self):
+        """The abstention-rises claim: pooled z +5.20, sign test p=.146."""
+        r = analysis.sign_test([(0.2, 0.3)] * 9 + [(0.3, 0.2)] * 3)
+        assert r["p"] == pytest.approx(0.146, abs=1e-3)
+
+    def test_ties_are_dropped(self):
+        r = analysis.sign_test([(0.5, 0.5)] * 5 + [(0.1, 0.2)] * 3)
+        assert r["n"] == 3 and r["up"] == 3
+
+    def test_empty_is_p_one(self):
+        assert analysis.sign_test([])["p"] == 1.0
+
+
+class TestProminence2x2:
+    def test_arms_are_separated(self):
+        rows = [srow(level=0.0), srow(level=-12.0, role="salience"),
+                srow(level=0.0, arm="competitor", role="salience"),
+                srow(level=-12.0, arm="competitor", role="correct")]
+        t = analysis.prominence_2x2(rows)
+        by = {(r["arm"], r["level_db"]): r for r in t}
+        assert by[("needle", 0.0)]["accuracy"] == 1.0
+        assert by[("needle", -12.0)]["salience"] == 1.0
+        assert by[("competitor", 0.0)]["salience"] == 1.0
+        assert by[("competitor", -12.0)]["accuracy"] == 1.0
+
+    def test_legacy_rows_are_the_needle_arm(self):
+        r = srow(); del r["edit_target"]
+        t = analysis.prominence_2x2([r])
+        assert t[0]["arm"] == "needle"
+
+    def test_null_items_are_dropped(self):
+        assert analysis.prominence_2x2([srow(null=True)]) == []
+
+    def test_arm_direction_relative_account(self):
+        """Two models where quietening the competitor recovers the answer:
+        correct rises 2/2 on the competitor arm."""
+        rows = []
+        for m in ("a", "b"):
+            rows += [srow(m, 0.0, "salience", "competitor"),
+                     srow(m, -18.0, "correct", "competitor")]
+        d = analysis.arm_direction(rows, "competitor", 0.0, -18.0, "correct")
+        assert (d["up"], d["down"]) == (2, 0)

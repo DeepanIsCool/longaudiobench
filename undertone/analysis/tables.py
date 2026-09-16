@@ -268,6 +268,82 @@ def scorer_gap(rows: Sequence[dict]) -> list[dict]:
     return out
 
 
+def sign_test(pairs: Sequence[tuple[float, float]]) -> dict[str, Any]:
+    """Two-sided sign test over per-model (before, after) pairs.
+
+    The headline statistic. Items come from 46 windows of 31 meetings and
+    each is scored by every model, so a cell-level z over 800 rows overstates
+    significance badly: the pooled z for "abstention rises L1->L3" was +5.20
+    and the model-level test gives 9/12, p=.15. This asks only whether the
+    *direction* is consistent across models, which is immune to how the cells
+    are clustered. Ties are dropped, as is standard.
+    """
+    from math import comb
+
+    up = sum(1 for a, b in pairs if b > a)
+    down = sum(1 for a, b in pairs if b < a)
+    n = up + down
+    if n == 0:
+        return {"up": 0, "down": 0, "n": 0, "p": 1.0}
+    k = max(up, down)
+    p = min(1.0, 2 * sum(comb(n, i) for i in range(k, n + 1)) / 2 ** n)
+    return {"up": up, "down": down, "n": n, "p": round(p, 4)}
+
+
+def prominence_2x2(sweep_rows: Sequence[dict]) -> list[dict]:
+    """The needle arm against the competitor arm, per level, pooled and per model.
+
+    Reads ``edit_target`` off each row. Rows written before the field existed
+    are the needle arm. Null items are dropped: they have no needle to edit.
+
+    What to look for. If accuracy tracks the *difference* between the two
+    spans - falling when the needle is attenuated and rising by about as much
+    when the competitor is - the prior is relative prominence. If the
+    competitor arm is flat, the needle's own audibility is the whole effect.
+    ``salience`` is the share choosing the loud competitor, which is the
+    direct readout of the trap.
+    """
+    rows = [r for r in sweep_rows if not r.get("error") and r.get("role_chosen")
+            and not r.get("is_null")]
+    out: list[dict] = []
+    models = sorted({r["model_key"] for r in rows})
+    for arm in ("needle", "competitor"):
+        arm_rows = [r for r in rows if r.get("edit_target", "needle") == arm]
+        for level in sorted({r["level_db"] for r in arm_rows}, reverse=True):
+            at = [r for r in arm_rows if r["level_db"] == level]
+            per_model = {}
+            for m in models:
+                mm = [r for r in at if r["model_key"] == m]
+                if mm:
+                    per_model[m] = round(accuracy(mm), 3)
+            out.append({
+                "arm": arm, "level_db": level, "n": len(at),
+                "accuracy": round(accuracy(at), 3),
+                "salience": round(salience_trap(at), 3),
+                "absent": round(sum(1 for r in at if r["role_chosen"] == "absent") / len(at), 3),
+                "per_model": per_model,
+            })
+    return out
+
+
+def arm_direction(sweep_rows: Sequence[dict], arm: str, from_db: float,
+                  to_db: float, role: str = "correct") -> dict[str, Any]:
+    """Sign test: did ``role``'s share move from ``from_db`` to ``to_db`` in
+    every model, for one arm? For the competitor arm the prediction is that
+    ``correct`` *rises* as the level falls."""
+    rows = [r for r in sweep_rows if not r.get("error") and r.get("role_chosen")
+            and not r.get("is_null") and r.get("edit_target", "needle") == arm]
+    pairs = []
+    for m in sorted({r["model_key"] for r in rows}):
+        a = [r for r in rows if r["model_key"] == m and r["level_db"] == from_db]
+        b = [r for r in rows if r["model_key"] == m and r["level_db"] == to_db]
+        if a and b:
+            pairs.append((sum(1 for r in a if r["role_chosen"] == role) / len(a),
+                          sum(1 for r in b if r["role_chosen"] == role) / len(b)))
+    return {"arm": arm, "role": role, "from_db": from_db, "to_db": to_db,
+            **sign_test(pairs)}
+
+
 def sanity_checks(rows: Sequence[dict]) -> list[str]:
     """Things that invalidate the tables above. Empty list means clean."""
     problems: list[str] = []

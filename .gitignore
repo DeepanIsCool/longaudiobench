@@ -68,3 +68,12 @@ archive/
 # Raw Kaggle fetch dumps. results/ holds the canonical-pack runs; this is the
 # unpruned archive they were selected from.
 _kag/
+.venv/
+
+# Runpod session state. .rp_key holds the API key; .pod_id the live pod.
+.rp_key
+.pod_id
+
+# The findings package is 9 MB of data plus a PDF; track it deliberately
+# with `git add -f` when a version is final, not by default.
+/UNDERTONE_report.zip

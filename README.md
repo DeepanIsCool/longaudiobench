@@ -111,20 +111,32 @@ flash-attention-2, and weights cached in `/kaggle/temp` so an 18 GB checkpoint d
 ## Layout
 
 ```
-undertone/
-  items.py protocol.py ladder.py scoring.py runner.py smoke.py
-  adapters/     the only per-model code — 13 of them
-  harvest/      sources, mentions, features, build, leakfilter
-  analysis/     tables; no composite scores, by design
+undertone/                  the library; everything a run or an analysis calls
+  items.py protocol.py ladder.py scoring.py runner.py smoke.py sweep.py
+  adapters/     the only per-model code — 13 models + 4 cascaded text twins (controls)
+  harvest/      sources, mentions, features, build, construct, leakfilter, asr
+  analysis/     tables, figures, sign_test, prominence_2x2; no composite scores
 scripts/
-  build_item_pack.py    CPU; emits item_pack.jsonl + FLAC clips
-  make_notebooks.py     regenerates all 16 notebooks
-notebooks/
-  00_smoke_test  01_build_item_pack  02_cascaded_control  10..22 (13 models)  90_analysis
+  build_item_pack.py    CPU; emits item_pack.jsonl + FLAC clips. --exclude-pack, --share
+  make_notebooks.py     regenerates the Kaggle notebooks; the source of truth for pip pins
+  collect_results.py    files raw run output into results/ by content, not by name
+  runpod/               rented-GPU orchestration: rp.py watchdog.py pull.py bootstrap.sh run_model.py
+experiments/            one script per planned run, each with its cost in the header. README has the plan.
+notebooks/              the Kaggle route: 00_smoke 01_pack 02_cascade 10..22 (13 models) 90_analysis
+tests/                  349 tests; `python -m pytest tests/`
+UNDERTONE_report/       the findings package sent for paper drafting: PDF, data/, analysis/regenerate.py
+results/                gitignored; raw run output, one directory per (model, run)
 ```
 
 Everything above `adapters/` is shared. That is what lets thirteen notebooks each be written against
 its own model's documentation and still produce numbers that compare.
+
+Two ways to run a model, same code either side:
+
+- **Kaggle** (`notebooks/`): free, 2×T4, 30 h/week. Three models do not fit at 5 min of audio.
+- **Runpod** (`scripts/runpod/` + `experiments/`): one A40, ~$0.40/h, everything fits. This is
+  where the paper's 11 complete runs came from; `experiments/README.md` is what to run next and
+  what it costs.
 
 ## Running it
 

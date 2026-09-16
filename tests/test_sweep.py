@@ -156,7 +156,7 @@ class TestSweepIsActuallyWired:
 
         from undertone.adapters.base import _REGISTRY
 
-        infra = {"00", "01", "02", "90"}
+        infra = {"00", "01", "02", "03", "04", "90"}   # 03/04 build packs, not models
         for path in sorted(pathlib.Path("notebooks").glob("*.ipynb")):
             if path.stem.split("_")[0] in infra:
                 continue
@@ -242,3 +242,173 @@ class TestQuestionOnlyBaseline:
         src = inspect.getsource(question_only)
         for field in ("pack_fingerprint", "code_sha", "correct_role"):
             assert field in src, f"question-only rows must carry {field}"
+
+
+class RelativeStub(StubModel):
+    """Answers by the needle-vs-competitor *ratio*, not the needle alone.
+
+    The competitor arm exists to tell these two accounts apart. This stub is
+    the relative-prominence account: quieten the competitor and it recovers the
+    answer even though the needle never changed.
+    """
+
+    def score_letters(self, audio, prompt, sr=16000):
+        needle = audio[10 * sr:12 * sr]
+        comp = audio[20 * sr:22 * sr]
+        rel = 20 * np.log10(
+            max(float(np.sqrt(np.mean(needle ** 2))), 1e-9)
+            / max(float(np.sqrt(np.mean(comp ** 2))), 1e-9))
+        want = "salience" if rel < self.threshold_db else "correct"
+        target = {"correct": "five milligrams", "salience": "fifty milligrams",
+                  "recency": "fifteen milligrams"}[want]
+        for line in prompt.splitlines():
+            if line[1:3] == ". " and line[3:] == target:
+                return {L: (5.0 if L == line[0] else 0.0) for L in "ABCD"}
+        return {L: 0.0 for L in "ABCD"}
+
+
+class TestEditTarget:
+    """The 2x2: which span the gain lands on, and what that does to contrast."""
+
+    def _audio(self, seconds=40.0, sr=16000):
+        rng = np.random.default_rng(0)
+        return rng.normal(0, 0.25, int(seconds * sr)).astype(np.float32)
+
+    def test_default_is_the_needle_and_rows_say_so(self):
+        rows = sweep.sweep_item(StubModel(), item(needle=(10.0, 12.0)), self._audio(),
+                                Window(0.0, 40.0, False), [(20.0, 22.0)])
+        assert {r["edit_target"] for r in rows} == {"needle"}
+
+    def test_competitor_edit_leaves_the_needle_untouched(self):
+        """StubModel reads only the needle's level. Attenuating the competitor
+        must not move it - otherwise the arm is editing the wrong span."""
+        it = item(needle=(10.0, 12.0))
+        rows = sweep.sweep_item(StubModel(threshold_db=-6.0), it, self._audio(),
+                                Window(0.0, 40.0, False), [(20.0, 22.0)],
+                                levels=(0.0, -12.0, -24.0), edit_target="competitor")
+        assert [r["role_chosen"] for r in rows] == ["correct"] * 3
+        assert {r["edit_target"] for r in rows} == {"competitor"}
+
+    def test_competitor_edit_lowers_measured_contrast(self):
+        """achieved_contrast_db is competitor-minus-needle: positive means the
+        trap is set. Quietening the competitor must read as it *falling* by
+        about the requested amount - the mirror image of the needle arm."""
+        it = item(needle=(10.0, 12.0))
+        rows = sweep.sweep_item(StubModel(), it, self._audio(),
+                                Window(0.0, 40.0, False), [(20.0, 22.0)],
+                                levels=(0.0, -12.0), edit_target="competitor")
+        drop = rows[0]["achieved_contrast_db"] - rows[1]["achieved_contrast_db"]
+        assert 10 < drop < 13
+
+    def test_the_two_arms_separate_the_two_accounts(self):
+        """A needle-only model does not recover when the competitor is
+        quietened; a relative-prominence model does. That difference is the
+        point of running both arms."""
+        it = item(needle=(10.0, 12.0))
+        audio = self._audio()
+        # Make the needle already quiet, so both stubs start on 'salience'.
+        sr = 16000
+        audio[10 * sr:12 * sr] *= 10 ** (-9 / 20)
+        args = (it, audio, Window(0.0, 40.0, False), [(20.0, 22.0)])
+        absolute = sweep.sweep_item(StubModel(-6.0), *args,
+                                    levels=(0.0, -18.0), edit_target="competitor")
+        relative = sweep.sweep_item(RelativeStub(-6.0), *args,
+                                    levels=(0.0, -18.0), edit_target="competitor")
+        assert [r["role_chosen"] for r in absolute] == ["salience", "salience"]
+        assert [r["role_chosen"] for r in relative] == ["salience", "correct"]
+
+    def test_boost_recovers_a_lost_answer(self):
+        """The needle arm in the other direction: if raising the needle brings
+        the answer back, prominence was what was missing."""
+        it = item(needle=(10.0, 12.0))
+        audio = self._audio()
+        sr = 16000
+        audio[10 * sr:12 * sr] *= 10 ** (-9 / 20)
+        rows = sweep.sweep_item(StubModel(-6.0), it, audio,
+                                Window(0.0, 40.0, False), [(20.0, 22.0)],
+                                levels=sweep.BOOST_LEVELS)
+        roles = [r["role_chosen"] for r in rows]
+        assert roles[0] == "salience" and roles[-1] == "correct"
+
+    def test_boost_does_not_clip(self):
+        """Clip protection is per span. A +9 dB edit on loud audio must not
+        rescale anything outside the edited span."""
+        from undertone.harvest.construct import GainEdit, apply_gain_edits
+        sr = 16000
+        audio = np.full(5 * sr, 0.8, dtype=np.float32)
+        out = apply_gain_edits(audio, [GainEdit(1.0, 2.0, 9.0)], sr)
+        assert float(np.max(np.abs(out))) <= 1.0
+        assert np.array_equal(out[:sr], audio[:sr])          # untouched before
+        assert np.array_equal(out[3 * sr:], audio[3 * sr:])  # untouched after
+
+    def test_unknown_target_is_refused(self):
+        with pytest.raises(ValueError, match="edit_target"):
+            sweep.sweep_item(StubModel(), item(needle=(10.0, 12.0)), self._audio(),
+                             Window(0.0, 40.0, False), [(20.0, 22.0)],
+                             edit_target="both")
+
+    def test_competitor_arm_needs_a_competitor(self):
+        with pytest.raises(ValueError, match="no competitor"):
+            sweep.sweep_item(StubModel(), item(needle=(10.0, 12.0)), self._audio(),
+                             Window(0.0, 40.0, False), [], edit_target="competitor")
+
+    def test_calibrated_levels_stay_in_the_exact_dose_region(self):
+        """Table 3b: shortfall <= 0.5 dB down to -12, 34 dB at -60. The fine
+        sweep must not wander past where the dose is honest."""
+        assert min(sweep.CALIBRATED_LEVELS) >= -12.0
+        assert sweep.CALIBRATED_LEVELS[0] == 0.0
+        assert sweep.BOOST_LEVELS[0] == 0.0
+
+
+class TestResumeAcrossArms:
+    def test_arms_do_not_mark_each_other_done(self, tmp_path):
+        """Needle and competitor rows can share a file. A finished needle arm
+        must not make run_sweep skip the competitor arm for the same item."""
+        import json
+        from undertone.items import ItemPack
+
+        it = MCQItem.from_dict({**item(needle=(10.0, 12.0)).to_dict(),
+                                "provenance": {"salience_at": 21.0}})
+        pack = ItemPack([it])
+        out = tmp_path / "sweep.jsonl"
+        out.write_text(json.dumps({
+            "item_id": "it_1", "level_db": 0.0, "edit_target": "needle",
+            "pack_fingerprint": pack.fingerprint, "error": None,
+            "role_chosen": "correct"}) + "\n")
+        # Monkeypatch audio loading so no file is needed.
+        import undertone.adapters.base as base
+        sr = 16000
+        base_load = base.load_audio
+        base.load_audio = lambda p: np.random.default_rng(0).normal(
+            0, 0.25, 40 * sr).astype(np.float32)
+        try:
+            sweep.run_sweep(StubModel(), pack, out, levels=(0.0,),
+                            edit_target="competitor", progress=False)
+        finally:
+            base.load_audio = base_load
+        rows = [json.loads(l) for l in out.read_text().splitlines()]
+        assert [(r["level_db"], r["edit_target"]) for r in rows] == \
+            [(0.0, "needle"), (0.0, "competitor")]
+
+    def test_legacy_rows_count_as_the_needle_arm(self, tmp_path):
+        """Rows written before edit_target existed have no such field. They
+        are needle rows and must resume as such, not be re-run."""
+        import json
+        from undertone.items import ItemPack
+
+        it = MCQItem.from_dict({**item(needle=(10.0, 12.0)).to_dict(),
+                                "provenance": {"salience_at": 21.0}})
+        pack = ItemPack([it])
+        out = tmp_path / "sweep.jsonl"
+        out.write_text(json.dumps({
+            "item_id": "it_1", "level_db": 0.0,
+            "pack_fingerprint": pack.fingerprint, "error": None,
+            "role_chosen": "correct"}) + "\n")
+        import undertone.adapters.base as base
+        base_load = base.load_audio
+        base.load_audio = lambda p: (_ for _ in ()).throw(AssertionError("should not load"))
+        try:
+            sweep.run_sweep(StubModel(), pack, out, levels=(0.0,), progress=False)
+        finally:
+            base.load_audio = base_load
+        assert len(out.read_text().splitlines()) == 1

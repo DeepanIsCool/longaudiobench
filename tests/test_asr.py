@@ -106,8 +106,95 @@ class TestCascadedControl:
 
         assert "cascaded_whisper_llm" not in adapters.list_adapters()
         assert "cascaded_whisper_llm" in adapters.list_adapters(include_controls=True)
-        assert adapters.list_controls() == ["cascaded_whisper_llm"]
+        assert "cascaded_whisper_llm" in adapters.list_controls()
         assert len(adapters.list_adapters()) == 13
+
+
+class TestTextTwins:
+    """Three more text models behind the identical Whisper front end."""
+
+    TWINS = ("cascaded_whisper_llama31_8b", "cascaded_whisper_mistral_7b",
+             "cascaded_whisper_gemma2_9b")
+
+    def test_twins_are_controls_not_models(self):
+        from undertone import adapters
+
+        for key in self.TWINS:
+            assert key not in adapters.list_adapters()
+            assert key in adapters.list_controls()
+        assert len(adapters.list_adapters()) == 13
+
+    def test_twins_share_everything_but_the_text_model(self):
+        """If anything but ``text_model`` differed, a gap between twins would
+        be partly a harness difference."""
+        from undertone.adapters.base import _REGISTRY
+        from undertone.adapters.cascaded import CascadedWhisperLLM
+
+        base = _REGISTRY["cascaded_whisper_llm"]
+        seen = {base.text_model}
+        for key in self.TWINS:
+            cls = _REGISTRY[key]
+            assert issubclass(cls, CascadedWhisperLLM)
+            assert cls.asr_model == base.asr_model
+            assert cls.primary == base.primary
+            assert cls.build_inputs is base.build_inputs
+            assert cls.transcribe_window is base.transcribe_window
+            assert cls.text_model not in seen, "two twins with one text model"
+            seen.add(cls.text_model)
+            assert cls.text_model in cls.model_id
+
+    def test_transcript_cache_is_keyed_on_audio_and_asr_not_text_model(self, tmp_path, monkeypatch):
+        """The whole point of the cache: twin #2 must reuse twin #1's
+        transcripts. A key that included the text model would defeat it."""
+        import numpy as np
+
+        from undertone.adapters import cascaded
+
+        monkeypatch.setenv(cascaded.ASR_CACHE_ENV, str(tmp_path))
+        calls = []
+
+        class FakeSeg:
+            text = " hello "
+
+        class FakeEngine:
+            def transcribe(self, path, **kw):
+                calls.append(path)
+                return [FakeSeg()], None
+
+        monkeypatch.setattr("undertone.harvest.asr._engine", lambda m: FakeEngine())
+        audio = np.zeros(16000, dtype=np.float32)
+
+        a = cascaded.CascadedWhisperLLM.__new__(cascaded.CascadedWhisperLLM)
+        a.lang = "en"
+        b = cascaded.CascadedWhisperMistral.__new__(cascaded.CascadedWhisperMistral)
+        b.lang = "en"
+        assert a.transcribe_window(audio) == "hello"
+        assert b.transcribe_window(audio) == "hello"
+        assert len(calls) == 1, "second twin re-ran ASR instead of hitting the cache"
+        assert len(list(tmp_path.glob("*.txt"))) == 1
+
+    def test_cache_off_by_default(self, monkeypatch):
+        import numpy as np
+
+        from undertone.adapters import cascaded
+
+        monkeypatch.delenv(cascaded.ASR_CACHE_ENV, raising=False)
+        calls = []
+
+        class FakeSeg:
+            text = "x"
+
+        class FakeEngine:
+            def transcribe(self, path, **kw):
+                calls.append(path)
+                return [FakeSeg()], None
+
+        monkeypatch.setattr("undertone.harvest.asr._engine", lambda m: FakeEngine())
+        a = cascaded.CascadedWhisperLLM.__new__(cascaded.CascadedWhisperLLM)
+        a.lang = "en"
+        a.transcribe_window(np.zeros(16000, dtype=np.float32))
+        a.transcribe_window(np.zeros(16000, dtype=np.float32))
+        assert len(calls) == 2
 
     def test_its_ceiling_does_not_constrain_the_grid(self):
         """Whisper chunks internally; the limit is the text model's context."""
