@@ -30,7 +30,7 @@ REPO_URL = "https://github.com/DeepanIsCool/longaudiobench.git"
 # kernel, and no two models are guaranteed to have been scored by the same code.
 # git clone --depth 1 --branch takes a tag or a branch but not a bare sha, so the
 # pin is a tag. Move it deliberately, never as a side effect of committing.
-REPO_REF = "paper-run-2"
+REPO_REF = "paper-run-3"
 ITEM_PACK_DATASET = "undertone-item-pack"
 
 # HARD pin, not a floor. ">=4.57.1" resolved to transformers 5.0.0 on Kaggle and
@@ -882,6 +882,10 @@ kept = leakfilter.apply_filter(list(pack), report)
 ItemPack(kept, meta={**pack.meta, "leak_filtered": True}).save(
     f"{PACK_DIR}/item_pack.jsonl")
 print(f"\\n{len(pack)} -> {len(kept)} items survived the filter")
+# Everything below - the question-only check, the listening list - must see
+# the survivors, not the proposals. Without this rebind the first expansion
+# run checked 126 pre-filter items and listed 19 P2s of which 9 had survived.
+pack = ItemPack.load(f"{PACK_DIR}/item_pack.jsonl")
 """
 
 CELL_QONLY = """\
@@ -1201,13 +1205,12 @@ Datasets) - `--exclude-pack` reads it.
 Everything it writes is `verified: false`, exactly as the first pack was.
 """
 
-# Categories the first pack left thin get the weight. P3 and P4 are the
-# abundant ones and already carry 42 of 70 items.
-EXPAND_SHARE = "C1=0.30,P1=0.25,P2=0.25,P3=0.10,P4=0.10"
-
-# Well above any plausible yield, so balance() never caps a thin category
-# before the leak filter has had its say.
-EXPAND_TARGET = 400
+# No --share and a target far above any plausible yield: balance() must not
+# cap anything before the leak filter has had its say. The first expansion
+# run used target 400 with P3/P4 at 0.10 and threw away 220 of 539 proposals
+# pre-filter - most of them P3, the category the sweep is built on. The
+# filter is the only thing that should decide what survives.
+EXPAND_TARGET = 2000
 
 EXPAND_SETUP = """
 import glob
@@ -1229,7 +1232,7 @@ def build_expand_notebook(group: str, meetings_expr: str) -> dict:
         code(CELL_BUILD.format(
             meetings_expr=meetings_expr, target=EXPAND_TARGET,
             extra_setup=EXPAND_SETUP,
-            extra_args=f" --exclude-pack {{PRIOR_PACK}} --share {EXPAND_SHARE}")),
+            extra_args=" --exclude-pack {PRIOR_PACK}")),
         code(CELL_LEAK),
         code(CELL_RECOVERY),
         code(CELL_LEAKRUN),
