@@ -9,16 +9,19 @@ scaled from the first paper run (12 models, ladder + sweep, ~$3.06).
 
 | # | script | what it adds | runtime | cost | running |
 | --- | --- | --- | --- | --- | --- |
-| 0 | *(none — CPU, free)* | Expansion pack: C1 9→40, P1/P2 →30, natural P3 →25. `build_item_pack.py --exclude-pack --share`. | hours, local | $0 | $0 |
+| 0 | *(done — Kaggle, free)* | Expansion pack: **279 new items** from all of AMI's scenario meetings, leak-filtered. Total is now 349: C1 95, P2 99, P4 94, P3 44, P1 17. `data/item_pack_v2/`, fingerprint `d2815553b0ff`. | 50 min | $0 | $0 |
 | 1 | `01_text_twins.sh` | Three more text LLMs behind the same Whisper. Generalises the salience-prior result beyond one model pair. | ~40 min | $1 | $1 |
-| 2 | `02_prominence_2x2.sh` | Boost the needle; attenuate the competitor; fine sweep in the calibrated region. Turns "prominence breaks it" into "prominence is relative, has a threshold in dB, and raising it repairs the failure". | ~5 h | $4 | $5 |
-| 3 | `03_new_items.sh` | Ladder on the expansion pack only. Resolves the two claims that failed the sign test (abstention rises with context, 9/12 p=.15; quiet items abstain more, 8/11 p=.23). | ~9 h | $4 | $9 |
-| 4 | `04_band_600.sh` | Ladder at 600 s. Makes "needle type explains more variance than duration" testable, against every benchmark that varies only length. | ~11 h | $6 | $15 |
+| 2 | `02_prominence_2x2.sh` | Boost the needle; attenuate the competitor; fine sweep in the calibrated region. Turns "prominence breaks it" into "prominence is relative, has a threshold in dB, and raising it repairs the failure". On the original 70. | ~5 h | $4 | $5 |
+| 3 | `03_new_items.sh` | Ladder on the 279 new items, 12 models. Resolves the two claims that failed the sign test — abstention rises with context (9/12, p=.15) and the C1 conditional. P1 stays at 17, so "quiet items abstain more" (8/11) remains a trend. | ~18 h | $7 | $12 |
+| 4 | `04_band_600.sh` | Ladder at 600 s. Makes "needle type explains more variance than duration" testable. **Six models** (`MODELS=` env) to fit the budget; all twelve is $6. | ~6 h | $3 | $15 |
 | — | reserve | untouched | | $5 | $20 |
 
-After step 2 the paper already has a new contribution for $5. If step 3's
-pack is large and eats into step 4, keep step 3 and run step 4 on six models
-(`MODELS=...` env, default list in the script is ordered for this).
+The pack came in larger than planned, so step 3 grew from $4 to $7 and step 4 shrank to six
+models. Running step 4 on all twelve is another $3 and worth it if the reserve goes unused.
+
+After step 2 the paper already has a new contribution for $5. The step-4
+model list is ordered so the first six span the RetrievalCost range and both
+matched pairs.
 
 ## Cut from the plan, and why
 
@@ -37,8 +40,10 @@ pack is large and eats into step 4, keep step 3 and run step 4 on six models
 - `experiments/*.sh` are run *on the pod* by `rp.py launch`; they source
   `scripts/runpod/bootstrap.sh` for everything shared.
 - The item pack arrives as a Kaggle dataset (`PACK_DATASET`), which is how
-  the first run did it. Steps 3 and 4 need new datasets; the header comment
-  of each script has the build command and the launch line.
+  the first run did it. Step 3's pack is built and sits in `data/item_pack_v2/`
+  with its `dataset-metadata.json`; upload with
+  `kaggle datasets create -p data/item_pack_v2 --dir-mode zip`. Step 4's
+  600 s pack is not built yet — its header has the harvest command.
 - Results land in `results/expNN_*/<model>/`, one file per task
   (`results.jsonl`, `sweep_<arm>_<levels>.jsonl`, `question_only.jsonl`).
   Every row carries `pack_fingerprint` and `code_sha`; the analysis merges
