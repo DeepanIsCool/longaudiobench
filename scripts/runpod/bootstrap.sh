@@ -21,7 +21,9 @@
 #                  model's requirements can swap it.
 #   Secrets from env.  Set on the pod by rp.py launch. Nothing here has a
 #                  literal token in it.
-set -u
+#   No `set -u` either.  An unbound variable would exit non-zero, and a
+#                  non-zero exit is a restart, and a restart is a loop. A
+#                  typo should fail one model's run_model call and move on.
 export HF_HOME=${HF_HOME:-/workspace/hf}
 export PYTORCH_ALLOC_CONF=${PYTORCH_ALLOC_CONF:-expandable_segments:True}
 export TOKENIZERS_PARALLELISM=false
@@ -38,7 +40,9 @@ setup() {
   fi
   ( cd "$OUT" && python -m http.server 8000 >/dev/null 2>&1 & )
   exec > >(tee -a "$OUT/run.log") 2>&1
-  echo "=== $(basename "$0") on $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader) ==="
+  # The watchdog counts this exact banner. Two of them means Runpod restarted
+  # the container, and the watchdog terminates the pod on sight.
+  echo "=== RUN START $(basename "$0") on $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader) $(date -u +%FT%TZ) ==="
   echo "code sha: ${UNDERTONE_CODE_SHA:-unset}"
   TORCH_V=$(python -c "import torch;print(torch.__version__.split('+')[0])")
   printf 'torch==%s\n' "$TORCH_V" > /workspace/constraints.txt
@@ -68,7 +72,10 @@ finish() {
   echo; echo "############ SUMMARY ############"
   grep -aE "_OK$|_FAILED$" "$OUT/run.log" | sort | uniq -c
   echo "RUN_COMPLETE"
-  # Give pull.py time for a last pass before the watchdog terminates the pod.
-  sleep 600
+  # The watchdog terminates on RUN_COMPLETE within a minute. This sleep is
+  # only so pull.py gets a last pass first; if the watchdog is somehow not
+  # running, the pod exits on its own and Runpod's restart hits the
+  # DONE-marker skips and the banner count, and is terminated on sight.
+  sleep 900
   exit 0
 }

@@ -16,8 +16,13 @@ Five generations of this, each a real failure:
 4. Cells OR log growth. Right idea, but counted only results.jsonl and
    sweep.jsonl, so the question-only phase (which writes neither) read as
    zero progress for its whole duration.
-5. This: any *.jsonl under any model directory, plus log bytes. A loop
+5. Any *.jsonl under any model directory, plus log bytes. A loop
    produces neither; a slow model produces one or the other.
+6. This, one more: a *fast* restart loop - script fails in seconds, exits,
+   Runpod restarts it - appends pip and clone output to run.log every
+   cycle, so "log grew" reads as alive and only the deadline stops it. The
+   start banner bootstrap.sh prints is counted; two banners is a restart,
+   and a restart is always a kill. Nothing here is designed to run twice.
 
     python scripts/runpod/watchdog.py <pod_id> <expected_ok> [deadline_min]
 """
@@ -76,7 +81,7 @@ def state():
                 cells += body.count('{"item_id"')
     log = curl([f"{U}/run.log"])
     return (cells, len(log), len(set(re.findall(r"(\w+)_OK$", log, re.M))),
-            "RUN_COMPLETE" in log)
+            "RUN_COMPLETE" in log, log.count("=== RUN START "))
 
 
 last_sig, last_change = None, time.time()
@@ -85,7 +90,10 @@ for minute in range(1, DEADLINE_MIN + 1):
     if not alive():
         print(f"pod gone at minute {minute}", flush=True)
         sys.exit(0)
-    cells, logsize, ok, complete = state()
+    cells, logsize, ok, complete, starts = state()
+    if starts >= 2:
+        kill(f"restart loop: {starts} start banners in run.log")
+        sys.exit(1)
     sig = (cells, logsize)
     if sig != last_sig:
         last_sig, last_change = sig, time.time()
