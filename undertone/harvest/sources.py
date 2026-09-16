@@ -73,8 +73,15 @@ class Recording:
             ]
             if len(kept) >= 20:      # too sparse to hold competing mentions
                 index = int(start // stride)
+                # The 300 s id is bare for compatibility with the packs
+                # already built and scored (56bd324cf6a3, 0b14538c9854).
+                # Any other band carries it, because ES2006d_w1 at 600 s is
+                # a different recording from ES2006d_w1 at 300 s and the two
+                # must never share an item id or an audio filename.
+                wid = (f"{self.recording_id}_w{index}" if band_seconds == 300
+                       else f"{self.recording_id}_b{band_seconds}_w{index}")
                 out.append(Recording(
-                    recording_id=f"{self.recording_id}_w{index}",
+                    recording_id=wid,
                     audio_path=self.audio_path,
                     lang=self.lang,
                     sector=self.sector,

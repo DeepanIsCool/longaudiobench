@@ -30,7 +30,7 @@ REPO_URL = "https://github.com/DeepanIsCool/longaudiobench.git"
 # kernel, and no two models are guaranteed to have been scored by the same code.
 # git clone --depth 1 --branch takes a tag or a branch but not a bare sha, so the
 # pin is a tag. Move it deliberately, never as a side effect of committing.
-REPO_REF = "paper-run-4"
+REPO_REF = "paper-run-5"
 ITEM_PACK_DATASET = "undertone-item-pack"
 
 # HARD pin, not a floor. ">=4.57.1" resolved to transformers 5.0.0 on Kaggle and
@@ -800,7 +800,7 @@ from undertone.harvest.sources import AMI_SCENARIO_MEETINGS, AMI_NONSCENARIO_MEE
 MEETINGS = " ".join({meetings_expr})
 print(f"harvesting {{len(MEETINGS.split())}} meetings: {{MEETINGS[:80]}}...")
 {extra_setup}
-!python /kaggle/working/longaudiobench/scripts/build_item_pack.py --out /kaggle/working/item_pack --audio-cache /kaggle/temp/source_audio --langs {{LANGS}} --target {target} --meetings {{MEETINGS}}{extra_args}
+!python /kaggle/working/longaudiobench/scripts/build_item_pack.py --out /kaggle/working/item_pack --audio-cache /kaggle/temp/source_audio --langs {{LANGS}} --target {target} --band-cap {band_cap} --meetings {{MEETINGS}}{extra_args}
 """
 
 CELL_LEAK = """\
@@ -1177,7 +1177,7 @@ def build_item_pack_notebook() -> dict:
         code(CELL_ENV.format(token_block="")),
         code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
         code(CELL_BUILD.format(meetings_expr="AMI_SCENARIO_MEETINGS[:60]",
-                               target=180, extra_setup="", extra_args="")),
+                               target=180, band_cap=300, extra_setup="", extra_args="")),
         code(CELL_LEAK),
         code(CELL_RECOVERY),
         code(CELL_LEAKRUN),
@@ -1221,6 +1221,37 @@ PRIOR_PACK = _prior[0]
 print(f"excluding windows from {PRIOR_PACK}")"""
 
 
+BAND_HEADER = """# UNDERTONE - 600 s duration band
+
+Every item so far is a 5-minute haystack, so "needle type explains more
+variance than recording length" cannot be tested. This harvests the same
+scenario meetings as 10-minute windows. Window ids carry the band
+(`ES2006d_b600_w1`), so nothing collides with the 300 s packs; the same
+needle may appear in both bands, which is what a duration comparison wants.
+
+Target is bounded (180 pre-filter, ~70 after) because the ladder at 600 s
+costs twice per cell and the plan budgets it at twelve models for ~$6.
+"""
+
+
+def build_band_notebook(band: int, target: int) -> dict:
+    return notebook([
+        md(BAND_HEADER),
+        code(CELL_PIP.format(pips="\n".join(
+            f'%pip install -q "{p}"'
+            for p in BASE_PIP + ["datasets>=2.19.0", "faster-whisper>=1.0.0"]))),
+        code(CELL_ENV.format(token_block="")),
+        code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
+        code(CELL_BUILD.format(meetings_expr="AMI_SCENARIO_MEETINGS", target=target,
+                               band_cap=band, extra_setup="", extra_args="")),
+        code(CELL_LEAK),
+        code(CELL_RECOVERY),
+        code(CELL_LEAKRUN),
+        code(CELL_QONLY),
+        code(CELL_VERIFY),
+    ])
+
+
 def build_expand_notebook(group: str, meetings_expr: str) -> dict:
     return notebook([
         md(EXPAND_HEADER.format(group=group)),
@@ -1230,7 +1261,7 @@ def build_expand_notebook(group: str, meetings_expr: str) -> dict:
         code(CELL_ENV.format(token_block="")),
         code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
         code(CELL_BUILD.format(
-            meetings_expr=meetings_expr, target=EXPAND_TARGET,
+            meetings_expr=meetings_expr, target=EXPAND_TARGET, band_cap=300,
             extra_setup=EXPAND_SETUP,
             extra_args=" --exclude-pack {PRIOR_PACK}")),
         code(CELL_LEAK),
@@ -1279,6 +1310,7 @@ def main() -> int:
                           ("05_expand_pack_nonscenario", lambda: build_expand_notebook(
                               "EN + IB + IN, the 33 non-scenario meetings",
                               "AMI_NONSCENARIO_MEETINGS")),
+                          ("06_band_600", lambda: build_band_notebook(600, 180)),
                           ("90_analysis", build_analysis_notebook)):
         path = args.out / f"{name}.ipynb"
         path.write_text(json.dumps(builder(), indent=1), encoding="utf-8")
@@ -1292,7 +1324,7 @@ def main() -> int:
     for path in written:
         print(f"wrote {path}")
     print(f"\n{len(written)} notebooks ({len(keys)} models + smoke test, item-pack build, "
-          f"three expansion packs, cascaded control and analysis)")
+          f"three expansion packs, a 600 s band, cascaded control and analysis)")
     return 0
 
 

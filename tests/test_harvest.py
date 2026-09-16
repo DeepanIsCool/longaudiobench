@@ -665,3 +665,20 @@ class TestConstructedProposal:
             item = build.to_item(rec, made[0], 300, 900)
             assert item.provenance["constructed"] is True
             assert item.category == "P3"
+
+
+class TestWindowIds:
+    def _rec(self, seconds=1300):
+        segs=[Segment(t, t+2.0, "A", "word") for t in range(0, seconds, 5)]
+        return Recording(recording_id="ES9999a", audio_path="", lang="en",
+                        sector="meetings", duration=float(seconds), segments=segs)
+
+    def test_300s_ids_are_unchanged(self):
+        """The two scored packs use bare ids; a rename would orphan 10k rows."""
+        assert [w.recording_id for w in self._rec().windows(300)][:2] == ["ES9999a_w0", "ES9999a_w1"]
+
+    def test_other_bands_carry_the_band(self):
+        ids600 = {w.recording_id for w in self._rec().windows(600)}
+        ids300 = {w.recording_id for w in self._rec().windows(300)}
+        assert ids600 == {"ES9999a_b600_w0", "ES9999a_b600_w1"}
+        assert not (ids600 & ids300), "a 600 s window must never share an id with a 300 s one"
