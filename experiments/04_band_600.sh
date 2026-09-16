@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Step 4 of the $20 plan. ~$6 for 12 models; drop to 6 if step 3 ran long.
+# Step 4 of the $20 plan. ~$4.50 for the 9 models that can hear 600 s.
 #
 # The ladder at a 600 s duration band. Every item so far is a 5-minute
 # haystack, so "needle type explains more variance than recording length"
@@ -10,25 +10,24 @@
 # with memory-efficient attention, so ~35 GiB at 600 s. An A40 fits. Do not
 # attempt 1200 s here - that is H100 territory and out of budget.
 #
-# The 600 s pack is a separate harvest with --band-cap 600. Same meetings
-# are fine - the windows are different lengths, so no cell is repeated.
-#
-#   python scripts/build_item_pack.py --out data/item_pack_600 --band-cap 600 \
-#       --meetings 120 --target 70
+# The 600 s pack is Kaggle notebook 06 (paper-run-5): all scenario meetings
+# at --band-cap 600, target 180 pre-filter. Window ids carry the band
+# (ES2006d_b600_w1), so nothing collides with the 300 s packs.
 #
 # Launch:  PACK_DATASET=<user>/undertone-item-pack-600 \
 #          python scripts/runpod/rp.py launch --name band600 \
-#              --script experiments/04_band_600.sh --planned 6.00
-# Watch:   python scripts/runpod/watchdog.py <pod> 12 720
+#              --script experiments/04_band_600.sh --planned 4.50
+# Watch:   python scripts/runpod/watchdog.py <pod> 9 720
 # Pull:    python scripts/runpod/pull.py <pod> --dest results/exp04_band600 --minutes 720
 source "$(dirname "$0")/../scripts/runpod/bootstrap.sh"
 setup
-# If the budget is short, keep the first six: they span the RetrievalCost
-# range (+.357 Gemma-E4B down to +.043 Voxtral) and both matched pairs.
-MODELS=${MODELS:-"gemma3n_e4b voxtral_mini_3b moss_audio_8b_thinking moss_audio_8b_instruct \
-  qwen2_5_omni_7b qwen2_5_omni_3b \
-  moss_audio_4b_thinking moss_audio_4b_instruct gemma3n_e2b qwen2_audio_7b \
-  phi4_multimodal aero_1_audio"}
+# Nine models, not twelve: both Gemma-3n and Qwen2-Audio have 30 s encoder
+# caps, so their 600 s rows would be the same truncation as their 300 s rows
+# and say nothing about duration. Ordered so the first six span the
+# RetrievalCost range and both matched pairs, if the budget forces a cut.
+MODELS=${MODELS:-"moss_audio_8b_thinking moss_audio_8b_instruct qwen2_5_omni_7b voxtral_mini_3b \
+  moss_audio_4b_thinking moss_audio_4b_instruct \
+  qwen2_5_omni_3b phi4_multimodal aero_1_audio"}
 for KEY in $MODELS; do
   run_model "$KEY" --ladder
 done
