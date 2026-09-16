@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Step 3 of the $20 plan. ~$7 for the 279 new items (12 models, ladder only).
+# Step 3 of the $20 plan. ~$8.50 for the 338 new items (12 models, ladder only).
 #
 # The ladder on the *expansion pack only*. This is what resolves the two
 # claims that failed the cluster-robust test (abstention rises with context,
 # 9/12 p=.15; quiet items abstain more, 8/11 p=.23) - they are underpowered
 # at 70 items, and no model count fixes that.
 #
-# The expansion pack exists: data/item_pack_v2/ (279 items, fingerprint
-# d2815553b0ff), merged from Kaggle runs 03 and 04 at paper-run-3. C1 86,
-# P2 88, P4 75, P3 21, P1 9, plus 30 nulls. Disjoint from v1 by window.
+# The expansion pack exists: data/item_pack_v2/ (338 items, fingerprint
+# 0b14538c9854), merged from Kaggle runs 03, 04 and 05 at paper-run-3/4.
+# C1 94, P2 114, P4 87, P3 31, P1 12, incl. 41 nulls. Every AMI meeting is
+# now used; this is the corpus ceiling for the 300 s band. Disjoint from v1 by window.
 #
 # Upload it once (private, ~450 MB), then launch:
 #
@@ -19,7 +20,7 @@
 #
 # Launch:  PACK_DATASET=deepansadhukhanjeet/undertone-item-pack-v2 \
 #          python scripts/runpod/rp.py launch --name items \
-#              --script experiments/03_new_items.sh --planned 7.00
+#              --script experiments/03_new_items.sh --planned 8.50
 # Watch:   python scripts/runpod/watchdog.py <pod> 12 1200
 # Pull:    python scripts/runpod/pull.py <pod> --dest results/exp03_items --minutes 1200
 source "$(dirname "$0")/../scripts/runpod/bootstrap.sh"

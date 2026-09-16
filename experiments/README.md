@@ -9,15 +9,15 @@ scaled from the first paper run (12 models, ladder + sweep, ~$3.06).
 
 | # | script | what it adds | runtime | cost | running |
 | --- | --- | --- | --- | --- | --- |
-| 0 | *(done — Kaggle, free)* | Expansion pack: **279 new items** from all of AMI's scenario meetings, leak-filtered. Total is now 349: C1 95, P2 99, P4 94, P3 44, P1 17. `data/item_pack_v2/`, fingerprint `d2815553b0ff`. | 50 min | $0 | $0 |
+| 0 | *(done — Kaggle, free)* | Expansion pack: **338 new items** from every remaining AMI meeting (scenario + non-scenario), leak-filtered. Total is now **408**: C1 103, P2 125, P4 106, P3 54, P1 20. This is the corpus ceiling. `data/item_pack_v2/`, fingerprint `0b14538c9854`. | 2 h | $0 | $0 |
 | 1 | `01_text_twins.sh` | Three more text LLMs behind the same Whisper. Generalises the salience-prior result beyond one model pair. | ~40 min | $1 | $1 |
 | 2 | `02_prominence_2x2.sh` | Boost the needle; attenuate the competitor; fine sweep in the calibrated region. Turns "prominence breaks it" into "prominence is relative, has a threshold in dB, and raising it repairs the failure". On the original 70. | ~5 h | $4 | $5 |
-| 3 | `03_new_items.sh` | Ladder on the 279 new items, 12 models. Resolves the two claims that failed the sign test — abstention rises with context (9/12, p=.15) and the C1 conditional. P1 stays at 17, so "quiet items abstain more" (8/11) remains a trend. | ~18 h | $7 | $12 |
-| 4 | `04_band_600.sh` | Ladder at 600 s. Makes "needle type explains more variance than duration" testable. **Six models** (`MODELS=` env) to fit the budget; all twelve is $6. | ~6 h | $3 | $15 |
-| — | reserve | untouched | | $5 | $20 |
+| 3 | `03_new_items.sh` | Ladder on the 338 new items, 12 models. Resolves the two claims that failed the sign test — abstention rises with context (9/12, p=.15) and the C1 conditional. P1 stays at 20, so "quiet items abstain more" (8/11) remains a trend. | ~22 h | $8.50 | $13.50 |
+| 4 | `04_band_600.sh` | Ladder at 600 s. Makes "needle type explains more variance than duration" testable. **Four models** (`MODELS=` env) to fit the budget; all twelve is $6. | ~4 h | $2 | $15.50 |
+| — | reserve | untouched | | $4.50 | $20 |
 
-The pack came in larger than planned, so step 3 grew from $4 to $7 and step 4 shrank to six
-models. Running step 4 on all twelve is another $3 and worth it if the reserve goes unused.
+The pack came in larger than planned, so step 3 grew from $4 to $8.50 and step 4 shrank to four
+models. Running step 4 on all twelve is another $4 and worth it if the reserve goes unused.
 
 After step 2 the paper already has a new contribution for $5. The step-4
 model list is ordered so the first six span the RetrievalCost range and both
