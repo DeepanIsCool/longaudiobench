@@ -30,7 +30,7 @@ REPO_URL = "https://github.com/DeepanIsCool/longaudiobench.git"
 # kernel, and no two models are guaranteed to have been scored by the same code.
 # git clone --depth 1 --branch takes a tag or a branch but not a bare sha, so the
 # pin is a tag. Move it deliberately, never as a side effect of committing.
-REPO_REF = "paper-run-3"
+REPO_REF = "paper-run-4"
 ITEM_PACK_DATASET = "undertone-item-pack"
 
 # HARD pin, not a floor. ">=4.57.1" resolved to transformers 5.0.0 on Kaggle and
@@ -796,7 +796,7 @@ LANGS = "en"
 # Build the list here, not in a $(...) subshell: the subshell does not inherit
 # this notebook's sys.path, so the import fails silently, --meetings gets an
 # empty list, and the harvest runs over zero meetings.
-from undertone.harvest.sources import AMI_SCENARIO_MEETINGS
+from undertone.harvest.sources import AMI_SCENARIO_MEETINGS, AMI_NONSCENARIO_MEETINGS
 MEETINGS = " ".join({meetings_expr})
 print(f"harvesting {{len(MEETINGS.split())}} meetings: {{MEETINGS[:80]}}...")
 {extra_setup}
@@ -1196,8 +1196,8 @@ packs merge at analysis time with nothing scored twice. Categories are
 reweighted toward the thin ones: C1 (9 items), P1 (8) and P2 (11) are what
 the model-level sign tests could not settle at the first pack's size.
 
-AMI's scenario meetings are split across two notebooks so each fits Kaggle's
-12 h session: this one covers **{group}**. Run both, then merge.
+AMI is split across three notebooks: 03 (IS+TS), 04 (ES leftovers), 05 (the
+non-scenario meetings). This one covers **{group}**. Run all, then merge.
 
 The original `undertone-item-pack` dataset must be attached (Add Input ->
 Datasets) - `--exclude-pack` reads it.
@@ -1276,6 +1276,9 @@ def main() -> int:
                               "IS + TS, 80 meetings", "AMI_SCENARIO_MEETINGS[60:]")),
                           ("04_expand_pack_es", lambda: build_expand_notebook(
                               "ES, unused windows of 60 meetings", "AMI_SCENARIO_MEETINGS[:60]")),
+                          ("05_expand_pack_nonscenario", lambda: build_expand_notebook(
+                              "EN + IB + IN, the 33 non-scenario meetings",
+                              "AMI_NONSCENARIO_MEETINGS")),
                           ("90_analysis", build_analysis_notebook)):
         path = args.out / f"{name}.ipynb"
         path.write_text(json.dumps(builder(), indent=1), encoding="utf-8")
@@ -1289,7 +1292,7 @@ def main() -> int:
     for path in written:
         print(f"wrote {path}")
     print(f"\n{len(written)} notebooks ({len(keys)} models + smoke test, item-pack build, "
-          f"two expansion packs, cascaded control and analysis)")
+          f"three expansion packs, cascaded control and analysis)")
     return 0
 
 

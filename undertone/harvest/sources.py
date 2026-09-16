@@ -135,6 +135,24 @@ AMI_SCENARIO_MEETINGS = (
     + _ami_series("TS", 3003, 3012)    # TNO
 )
 
+# The 33 non-scenario meetings: real research-group meetings recorded at the
+# same three sites. Same rooms and headsets, so P1/P2 arise the same way, but
+# nobody is arguing about a remote control, so the competing-value density
+# that feeds P3/P4/C1 is lower. Harvested last, after every scenario meeting,
+# because the yield per meeting is lower and the leak filter is the slow
+# step. IB and IN recordings are single-part (no a-d suffix). Any id here
+# that lacks annotations or a Mix-Headset wav is skipped by the harvest.
+AMI_NONSCENARIO_MEETINGS = (
+    "EN2001a", "EN2001b", "EN2001d", "EN2001e",
+    "EN2002a", "EN2002b", "EN2002c", "EN2002d",
+    "EN2003a", "EN2004a", "EN2005a",
+    "EN2006a", "EN2006b",
+    "EN2009b", "EN2009c", "EN2009d",
+    "IB4001", "IB4002", "IB4003", "IB4004", "IB4005", "IB4010", "IB4011",
+    "IN1001", "IN1002", "IN1005", "IN1007", "IN1008", "IN1009",
+    "IN1012", "IN1013", "IN1014", "IN1016",
+)
+
 # A small default so an exploratory run is minutes, not hours. Pass
 # --meetings "$(python -c 'from undertone.harvest.sources import
 # AMI_SCENARIO_MEETINGS as m; print(" ".join(m))')" for the full harvest.

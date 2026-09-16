@@ -156,7 +156,7 @@ class TestSweepIsActuallyWired:
 
         from undertone.adapters.base import _REGISTRY
 
-        infra = {"00", "01", "02", "03", "04", "90"}   # 03/04 build packs, not models
+        infra = {"00", "01", "02", "03", "04", "05", "90"}   # 03-05 build packs, not models
         for path in sorted(pathlib.Path("notebooks").glob("*.ipynb")):
             if path.stem.split("_")[0] in infra:
                 continue
