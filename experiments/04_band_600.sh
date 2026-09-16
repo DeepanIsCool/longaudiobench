@@ -10,11 +10,17 @@
 # with memory-efficient attention, so ~35 GiB at 600 s. An A40 fits. Do not
 # attempt 1200 s here - that is H100 territory and out of budget.
 #
-# The 600 s pack is Kaggle notebook 06 (paper-run-5): all scenario meetings
-# at --band-cap 600, target 180 pre-filter. Window ids carry the band
-# (ES2006d_b600_w1), so nothing collides with the 300 s packs.
+# The 600 s pack exists: data/item_pack_600/, 85 items (P1 21, P2 19, P3 14,
+# P4 25, C1 6, incl. 10 nulls), from Kaggle notebook 06 at paper-run-5 -
+# all scenario meetings at --band-cap 600, target 180 pre-filter. Window ids
+# carry the band (ES2006d_b600_w1), so nothing collides with the 300 s packs.
+# Uploaded as deepansadhukhanjeet/undertone-item-pack-600.
 #
-# Launch:  PACK_DATASET=<user>/undertone-item-pack-600 \
+# P1 note: 21 quiet items here against 20 in the whole 300 s corpus. Longer
+# windows have more dynamic range for the bottom-decile energy test to work
+# with. That is the first real P1 sample size the benchmark has had.
+#
+# Launch:  PACK_DATASET=deepansadhukhanjeet/undertone-item-pack-600 \
 #          python scripts/runpod/rp.py launch --name band600 \
 #              --script experiments/04_band_600.sh --planned 4.50
 # Watch:   python scripts/runpod/watchdog.py <pod> 9 720
