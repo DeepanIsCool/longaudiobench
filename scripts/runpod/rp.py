@@ -222,7 +222,7 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
             "OUT": os.environ.get("OUT", "/workspace/out"),
             # So the pod can stop itself when its step completes (bootstrap
             # finish), without depending on a laptop-side watchdog.
-            "RUNPOD_API_KEY": key(),
+            "UNDERTONE_RUNPOD_KEY": key(),
             "HF_HOME": "/workspace/hf",
             "UNDERTONE_ASR_CACHE": "/workspace/asr_cache",
             "PYTORCH_ALLOC_CONF": "expandable_segments:True",

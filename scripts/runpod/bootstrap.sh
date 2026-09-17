@@ -127,11 +127,17 @@ finish() {
   # exited is restarted by Runpod and loops at full price. So the pod stops
   # itself: Runpod sets RUNPOD_POD_ID in every container, and rp.py launch
   # passes the API key. The sleep gives pull.py a last pass first.
-  sleep 600
-  if [ -n "${RUNPOD_API_KEY:-}" ] && [ -n "${RUNPOD_POD_ID:-}" ]; then
-    echo "self-stop: pod $RUNPOD_POD_ID"
-    curl -s --max-time 60 -X POST -H "Authorization: Bearer $RUNPOD_API_KEY" \
-      "https://rest.runpod.io/v1/pods/$RUNPOD_POD_ID/stop" >/dev/null 2>&1
+  # Runpod injects its own pod-scoped RUNPOD_API_KEY, so the account key
+  # travels as UNDERTONE_RUNPOD_KEY. The pod id comes from RUNPOD_POD_ID or,
+  # failing that, the container hostname, which Runpod sets to the pod id.
+  local KEYV=${UNDERTONE_RUNPOD_KEY:-${RUNPOD_API_KEY:-}}
+  local PID=${RUNPOD_POD_ID:-$(hostname 2>/dev/null)}
+  echo "self-stop armed: pod=${PID:-unset} key=$([ -n "$KEYV" ] && echo set || echo unset)"
+  sleep 300
+  if [ -n "$KEYV" ] && [ -n "$PID" ]; then
+    echo "self-stop: pod $PID $(date -u +%FT%TZ)"
+    curl -s --max-time 60 -X POST -H "Authorization: Bearer $KEYV" \
+      "https://rest.runpod.io/v1/pods/$PID/stop" | head -c 200; echo
     sleep 120
   fi
   exit 0
