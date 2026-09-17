@@ -17,6 +17,7 @@ for i in $(seq 1 "$MAX_TRIES"); do
   OUT=$($PY scripts/runpod/rp.py launch --name "$NAME" --script "$SCRIPT" \
         --planned "$PLANNED" --ref "${REF:-paper-run-10}" --cloud "$CLOUD" 2>&1)
   if POD=$(echo "$OUT" | grep -oE '^launched [a-z0-9]+' | awk '{print $2}') && [ -n "$POD" ]; then
+    pkill -f "watchdog.py $POD" 2>/dev/null; pkill -f "pull.py $POD" 2>/dev/null
     echo "$OUT"
     echo "$POD" > .pod_id
     nohup $PY scripts/runpod/watchdog.py "$POD" "$EXPECTED" "$DEADLINE" "$DEST" > "results/watchdog_${NAME}.log" 2>&1 &

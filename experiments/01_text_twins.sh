@@ -11,7 +11,7 @@
 # cost only the text model. The original cascade is re-run first so all four
 # share one commit - it ran on 0948b549, the audio models on 68c75bc.
 #
-# Launch:  python scripts/runpod/rp.py launch --name twins \
+# Launch:  python scripts/runpod/rp.py launch --name undertone \
 #              --script experiments/01_text_twins.sh --planned 1.00
 # Watch:   python scripts/runpod/watchdog.py <pod> 4 120
 # Pull:    python scripts/runpod/pull.py <pod> --dest results/exp01_twins

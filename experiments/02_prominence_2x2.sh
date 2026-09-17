@@ -19,7 +19,7 @@
 # Together with the existing needle:default sweep that is the 2x2. Sweep
 # cells use short contrast windows, so they are cheap: ~1 s each.
 #
-# Launch:  python scripts/runpod/rp.py launch --name 2x2 \
+# Launch:  python scripts/runpod/rp.py launch --name undertone \
 #              --script experiments/02_prominence_2x2.sh --planned 4.00
 # Watch:   python scripts/runpod/watchdog.py <pod> 11 360
 # Pull:    python scripts/runpod/pull.py <pod> --dest results/exp02_2x2 --minutes 360

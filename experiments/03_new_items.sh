@@ -19,7 +19,7 @@
 # says which pack it came from.
 #
 # Launch:  PACK_DATASET=deepansadhukhanjeet/undertone-item-pack-v2 \
-#          python scripts/runpod/rp.py launch --name items \
+#          python scripts/runpod/rp.py launch --name undertone \
 #              --script experiments/03_new_items.sh --planned 8.50
 # Watch:   python scripts/runpod/watchdog.py <pod> 12 1200
 # Pull:    python scripts/runpod/pull.py <pod> --dest results/exp03_items --minutes 1200

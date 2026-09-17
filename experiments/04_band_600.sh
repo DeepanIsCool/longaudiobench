@@ -21,7 +21,7 @@
 # with. That is the first real P1 sample size the benchmark has had.
 #
 # Launch:  PACK_DATASET=deepansadhukhanjeet/undertone-item-pack-600 \
-#          python scripts/runpod/rp.py launch --name band600 \
+#          python scripts/runpod/rp.py launch --name undertone \
 #              --script experiments/04_band_600.sh --planned 4.50
 # Watch:   python scripts/runpod/watchdog.py <pod> 9 720
 # Pull:    python scripts/runpod/pull.py <pod> --dest results/exp04_band600 --minutes 720

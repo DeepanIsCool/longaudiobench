@@ -39,12 +39,18 @@ python scripts/runpod/pull.py <pod_id> --dest results/exp02_2x2 --minutes 360
 ```
 
 `--planned` is the expected spend; `guard` refuses if `balance - planned`
-would breach the reserve (`$2.00` by default). Pass `--ref paper-run-2` to
-clone a tag rather than `main` for anything that goes in the paper.
+would breach the floor (`$1.00`). Pass `--ref paper-run-N` to clone a tag
+rather than `main` for anything that goes in the paper.
 
-When the watchdog prints `TERMINATING (all N/N done)` the pod is gone and
-`pull.py` has the rows. Run `rp.py status` once more to confirm nothing is
-billing.
+**Use one `--name` for every step.** The watchdog *stops* the pod on
+completion (or stall, or restart loop) rather than terminating it. A stopped
+pod keeps its volume — weights, packs, ASR cache — and its host, and bills
+cents a day for storage. The next `launch` with the same name patches in the
+new step's script and tag and resumes it: no re-download, no stock wait.
+`rp.py kill` is the only thing that deletes a pod, and it is never automatic.
+
+When the watchdog prints `STOPPING (all N/N done)` the rows are in the
+snapshot and pull directories. `rp.py status` shows the pod as stopped.
 
 ## Why it looks like this
 

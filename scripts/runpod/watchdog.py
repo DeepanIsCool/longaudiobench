@@ -68,7 +68,7 @@ def alive():
         d = json.loads(raw)
     except json.JSONDecodeError:
         return True
-    return d.get("id") == POD and d.get("desiredStatus") != "TERMINATED"
+    return d.get("id") == POD and d.get("desiredStatus") == "RUNNING"
 
 
 def snapshot():
@@ -88,13 +88,17 @@ def snapshot():
 
 
 def kill(why):
-    print(f"TERMINATING ({why})", flush=True)
+    """Stop, not terminate. The volume - weights, pack, ASR cache - and the
+    host reservation survive a stop; a resume gets the GPU back without a
+    stock wait. Terminate only from rp.py kill, by hand, when a pod is
+    never coming back."""
+    print(f"STOPPING ({why})", flush=True)
     try:
         snapshot()
     except Exception as exc:  # noqa: BLE001 - never let a snapshot block a kill
         print(f"snapshot failed: {exc}", flush=True)
-    curl(["-X", "DELETE", "-H", f"Authorization: Bearer {KEY}",
-          f"https://rest.runpod.io/v1/pods/{POD}"], 60)
+    curl(["-X", "POST", "-H", f"Authorization: Bearer {KEY}",
+          f"https://rest.runpod.io/v1/pods/{POD}/stop"], 60)
 
 
 def state():

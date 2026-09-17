@@ -21,8 +21,13 @@ minutes.
 
     python scripts/runpod/rp.py status
     python scripts/runpod/rp.py guard
-    python scripts/runpod/rp.py launch --name exp2 --script experiments/02_prominence_2x2.sh
-    python scripts/runpod/rp.py kill
+    python scripts/runpod/rp.py launch --name undertone --script experiments/02_prominence_2x2.sh
+    python scripts/runpod/rp.py stop                  # keep the volume; resume later
+    python scripts/runpod/rp.py kill                  # delete pods and volumes
+
+Use ONE --name for every step. A stopped pod of that name is resumed with
+the new step's script, so the 10-20 GB of weights and the packs are pulled
+once, and a stock wait happens at most once.
 """
 import argparse
 import json
@@ -80,21 +85,54 @@ def balance():
 
 
 def pods():
-    d = _curl(["-H", f"Authorization: Bearer {key()}", f"{REST}/pods"])
-    return d if isinstance(d, list) else d.get("pods", [])
+    """Running pods only. Stopped ones (desiredStatus EXITED) are listed by
+    all_pods() and are not a reason to refuse a launch."""
+    return [p for p in all_pods() if p.get("desiredStatus") == "RUNNING"]
 
 
 def terminate(pod_id):
+    """Delete the pod and its volume. Only for a pod that is never coming
+    back; everything else should `stop`."""
     subprocess.run(["curl", "-s", "-X", "DELETE", "--max-time", "60",
                     "-H", f"Authorization: Bearer {key()}", f"{REST}/pods/{pod_id}"],
                    capture_output=True, text=True, timeout=75)
     return pod_id
 
 
+def stop(pod_id):
+    """Stop the pod, keeping its volume - the weights, the pack, the ASR cache
+    - and its place on the host. Billing drops to volume storage (cents a
+    day). A later `resume` gets the GPU back without a stock wait when the
+    host still has one, which is most of the time on secure cloud. Four
+    twins launches were terminated when they should have been stopped, and
+    each cost an hour's wait for a new card."""
+    return _curl(["-X", "POST", "-H", f"Authorization: Bearer {key()}",
+                  f"{REST}/pods/{pod_id}/stop"], 60)
+
+
+def resume(pod_id):
+    """Start a stopped pod. Its dockerStartCmd runs again from the top: the
+    repo is re-cloned at the same tag and the step script re-runs, skipping
+    every model with a DONE marker."""
+    return _curl(["-X", "POST", "-H", f"Authorization: Bearer {key()}",
+                  f"{REST}/pods/{pod_id}/start"], 120)
+
+
+def all_pods():
+    d = _curl(["-H", f"Authorization: Bearer {key()}", f"{REST}/pods"])
+    return d if isinstance(d, list) else d.get("pods", [])
+
+
+def stop_all():
+    stopped = [stop(p["id"]) and p["id"] for p in pods()]
+    print(f"stopped {len(stopped)} pod(s): {stopped or '(none were running)'}")
+    return stopped
+
+
 def kill_all():
-    """Stop everything. Safe to run at any time, including twice."""
-    killed = [terminate(p["id"]) for p in pods()]
-    print(f"terminated {len(killed)} pod(s): {killed or '(none were running)'}")
+    """Terminate everything, running or stopped. Safe to run twice."""
+    killed = [terminate(p["id"]) for p in all_pods()]
+    print(f"terminated {len(killed)} pod(s): {killed or '(none existed)'}")
     return killed
 
 
@@ -171,6 +209,23 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
         },
         "dockerStartCmd": ["bash", "-lc", start],
     }
+    # A stopped pod of this name is resumed with the new step's start command
+    # and fresh env, keeping its volume - weights, pack, ASR cache - and its
+    # host. One pod carries every step; a stock wait happens at most once.
+    for p in all_pods():
+        if p.get("name") == name and p.get("desiredStatus") == "EXITED":
+            patch = _curl(["-X", "PATCH", f"{REST}/pods/{p['id']}",
+                           "-H", f"Authorization: Bearer {key()}",
+                           "-H", "Content-Type: application/json",
+                           "-d", json.dumps({"dockerStartCmd": body["dockerStartCmd"],
+                                             "env": body["env"]})], 120)
+            started = resume(p["id"])
+            if started.get("id") == p["id"] or started.get("desiredStatus") == "RUNNING":
+                print(f"launched {p['id']}  {name}  (resumed; volume kept; step {script})")
+                print(f"  proxy: https://{p['id']}-8000.proxy.runpod.net/")
+                return p["id"]
+            print(f"resume of {p['id']} failed: {json.dumps(started)[:300]}\n"
+                  f"  (patch said: {json.dumps(patch)[:120]}) - falling through to create")
     d = _curl(["-X", "POST", f"{REST}/pods", "-H", f"Authorization: Bearer {key()}",
                "-H", "Content-Type: application/json", "-d", json.dumps(body)], 120)
     pod_id = d.get("id")
@@ -188,7 +243,9 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status")
-    sub.add_parser("kill")
+    sub.add_parser("stop", help="stop every running pod, keeping volumes")
+    sub.add_parser("kill", help="terminate every pod, running or stopped, deleting volumes")
+    r = sub.add_parser("resume"); r.add_argument("pod_id")
     g = sub.add_parser("guard")
     g.add_argument("--reserve", type=float, default=DEFAULT_RESERVE_USD)
     g.add_argument("--planned", type=float, default=0.0)
@@ -205,11 +262,17 @@ def main():
     a = ap.parse_args()
     if a.cmd == "status":
         bal, rate = balance()
-        ps = pods()
-        print(f"balance ${bal}   spend ${rate}/hr   pods running: {len(ps)}")
+        ps = all_pods()
+        print(f"balance ${bal}   spend ${rate}/hr   pods: "
+              f"{sum(p.get('desiredStatus') == 'RUNNING' for p in ps)} running, "
+              f"{sum(p.get('desiredStatus') == 'EXITED' for p in ps)} stopped")
         for p in ps:
             print(f"  {p['id']}  {p.get('name')}  {p.get('desiredStatus')}  "
-                  f"{p.get('machine', {}).get('gpuDisplayName', '?')}")
+                  f"{(p.get('machine') or {}).get('gpuDisplayName', '?')}")
+    elif a.cmd == "stop":
+        stop_all()
+    elif a.cmd == "resume":
+        print(json.dumps(resume(a.pod_id))[:300])
     elif a.cmd == "kill":
         kill_all()
     elif a.cmd == "guard":
