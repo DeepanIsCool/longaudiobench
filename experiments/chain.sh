@@ -39,6 +39,11 @@ done_count() { find "$1" -maxdepth 2 -name DONE 2>/dev/null | wc -l | tr -d ' ';
 run_step() {  # name script pack fp tag expected deadline planned
   local NAME=$1 SCRIPT=$2 PACK=$3 FP=$4 TAG=$5 EXPECTED=$6 DEADLINE=$7 PLANNED=$8
   local DEST=results/exp_$NAME
+  # Restartable: a step whose DONE count is already complete is skipped, so
+  # the chain can be re-run after a laptop outage and continue.
+  if [ "$(done_count "$DEST")" -ge "$EXPECTED" ]; then
+    echo "$(date -u +%FT%TZ) $NAME: already $EXPECTED/$EXPECTED DONE, skipping"; return 0
+  fi
   echo "$(date -u +%FT%TZ) === $NAME: launch ($PLANNED planned, $EXPECTED models, $DEADLINE min) ==="
   # First launch: a fresh output directory on the volume and no restore. A
   # restore here would bring the previous step's DONE markers along.
@@ -61,8 +66,10 @@ run_step() {  # name script pack fp tag expected deadline planned
 }
 
 # Step 2 is already running: wait for it, bank it, and verify before moving on.
-echo "$(date -u +%FT%TZ) waiting for the running step 2 to stop"
-wait_for_stop
+if [ "$(done_count results/exp03_all)" -lt 12 ]; then
+  echo "$(date -u +%FT%TZ) waiting for the running step 2 to stop"
+  wait_for_stop
+fi
 scripts/runpod/bank.sh results/exp03_all v2 | tail -2
 N=$(done_count results/exp03_all); echo "$(date -u +%FT%TZ) 03_all_items: $N/12 DONE"
 if [ "$N" -lt 12 ]; then

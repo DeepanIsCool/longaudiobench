@@ -122,10 +122,17 @@ finish() {
   echo; echo "############ SUMMARY ############"
   grep -aE "_OK$|_FAILED$" "$OUT/run.log" | sort | uniq -c
   echo "RUN_COMPLETE"
-  # The watchdog terminates on RUN_COMPLETE within a minute. This sleep is
-  # only so pull.py gets a last pass first; if the watchdog is somehow not
-  # running, the pod exits on its own and Runpod's restart hits the
-  # DONE-marker skips and the banner count, and is terminated on sight.
-  sleep 900
+  # The laptop's watchdog stops the pod within a minute of RUN_COMPLETE. If
+  # the laptop is asleep or gone, nothing would, and a pod whose script has
+  # exited is restarted by Runpod and loops at full price. So the pod stops
+  # itself: Runpod sets RUNPOD_POD_ID in every container, and rp.py launch
+  # passes the API key. The sleep gives pull.py a last pass first.
+  sleep 600
+  if [ -n "${RUNPOD_API_KEY:-}" ] && [ -n "${RUNPOD_POD_ID:-}" ]; then
+    echo "self-stop: pod $RUNPOD_POD_ID"
+    curl -s --max-time 60 -X POST -H "Authorization: Bearer $RUNPOD_API_KEY" \
+      "https://rest.runpod.io/v1/pods/$RUNPOD_POD_ID/stop" >/dev/null 2>&1
+    sleep 120
+  fi
   exit 0
 }
