@@ -211,3 +211,27 @@ class TestPackCheck:
         out = subprocess.run(["bash", "-c", f'PACK="{tmp_path}"; if {cond}; then echo MISSING; else echo FOUND; fi'],
                              capture_output=True, text=True)
         assert out.stdout.strip() == "MISSING"
+
+
+class TestPinsFile:
+    def test_pins_txt_matches_the_generator(self):
+        """The pod reads pins.txt; the generator is the source of truth. If
+        META changes and this file is not regenerated, the pod runs stale pins."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("pins", RUNPOD / "pins.py")
+        mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+        assert (RUNPOD / "pins.txt").read_text() == mod.render(mod.generate()), \
+            "run: python scripts/runpod/pins.py --write"
+
+    def test_every_experiment_model_has_pins(self):
+        pins = {l.split("|")[0] for l in (RUNPOD / "pins.txt").read_text().splitlines()
+                if l and not l.startswith("#")}
+        for f in EXPERIMENTS.glob("*.sh"):
+            for key in re.findall(r"\b([a-z0-9]+_[a-z0-9_]+)\b", f.read_text()):
+                if key.startswith(("cascaded_", "qwen", "moss", "gemma", "phi4", "voxtral", "aero", "audio_flamingo")):
+                    assert key in pins, f"{f.name}: {key} has no pins"
+
+    def test_bootstrap_reads_pins_with_grep_not_python(self):
+        src = (RUNPOD / "bootstrap.sh").read_text()
+        assert 'grep "^${KEY}|"' in src
+        assert "python scripts/runpod/pins.py" not in src

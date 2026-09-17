@@ -16,7 +16,8 @@
 #   One venv per model.  pip accumulates into one site-packages. A torchao
 #                  floor on one model replaced torch for every model after it;
 #                  11 of 13 failed with `module 'torch' has no attribute 'int1'`.
-#   Pins from pins.py.  Never typed by hand. See pins.py.
+#   Pins from pins.txt.  Generated on the laptop by pins.py --write, never
+#                  typed by hand, never computed on the pod.
 #   Constraint torch.  A pip constraints file holding the image's torch so no
 #                  model's requirements can swap it.
 #   Secrets from env.  Set on the pod by rp.py launch. Nothing here has a
@@ -44,8 +45,12 @@ setup() {
   # the container, and the watchdog terminates the pod on sight.
   echo "=== RUN START $(basename "$0") on $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader) $(date -u +%FT%TZ) ==="
   echo "code sha: ${UNDERTONE_CODE_SHA:-unset}"
-  TORCH_V=$(python -c "import torch;print(torch.__version__.split('+')[0])")
-  printf 'torch==%s\n' "$TORCH_V" > /workspace/constraints.txt
+  TORCH_V=$(python -c "import torch;print(torch.__version__.split('+')[0])" 2>/dev/null)
+  case "$TORCH_V" in
+    [0-9]*.[0-9]*) printf 'torch==%s\n' "$TORCH_V" > /workspace/constraints.txt ;;
+    *) echo "torch version unreadable from the image python ('$TORCH_V') - aborting before any model"; finish ;;
+  esac
+  echo "constraints: $(cat /workspace/constraints.txt)"
   pip install -q kaggle 2>&1 | tail -1
   if [ ! -f "$PACK/item_pack/item_pack.jsonl" ] && [ -n "${KAGGLE_KEY:-}" ]; then
     mkdir -p "$PACK"
@@ -66,11 +71,32 @@ run_model() {
   local KEY=$1; shift
   if [ -f "$OUT/$KEY/DONE" ]; then echo "skip $KEY (DONE)"; return; fi
   echo; echo "######## $KEY ########"; date -u +"start %H:%M:%S UTC"
-  local PINS; PINS=$(cd "$REPO" && python scripts/runpod/pins.py "$KEY")
+  # From the committed file, with grep. No Python runs on the pod before the
+  # venv exists - that is what took the fourth twins launch down.
+  local PINS; PINS=$(grep "^${KEY}|" "$REPO/scripts/runpod/pins.txt" | cut -d'|' -f2-)
+  if [ -z "$PINS" ]; then
+    echo "$KEY: pins.py printed nothing - not building a venv for it"; echo "${KEY}_FAILED"; return
+  fi
+  echo "pins: $PINS"
   local V=/workspace/venv
   rm -rf "$V" && python -m venv --system-site-packages "$V"
+  # Full pip output to a file the puller mirrors. The first twins run showed
+  # only pip's upgrade notice via tail -1 while installing nothing in six
+  # seconds; the reason was in the lines tail threw away.
+  mkdir -p "$OUT/$KEY"
   # shellcheck disable=SC2086
-  "$V/bin/pip" install -q --constraint /workspace/constraints.txt $PINS 2>&1 | tail -1
+  "$V/bin/pip" install --constraint /workspace/constraints.txt $PINS > "$OUT/$KEY/pip.log" 2>&1
+  local PIPRC=$?
+  grep -vE "^\s*$|Requirement already satisfied|^\[notice\]" "$OUT/$KEY/pip.log" | tail -4
+  if [ $PIPRC -ne 0 ]; then
+    echo "$KEY: pip exited $PIPRC - see $KEY/pip.log"; echo "${KEY}_FAILED"; return
+  fi
+  # The venv must be able to import the first pin before a model load is
+  # attempted. transformers is in every pin set.
+  if ! "$V/bin/python" -c "import transformers" 2>/dev/null; then
+    echo "$KEY: venv cannot import transformers after pip succeeded - see $KEY/pip.log"
+    "$V/bin/pip" freeze | head -20; echo "${KEY}_FAILED"; return
+  fi
   ( cd "$REPO" && "$V/bin/python" scripts/runpod/run_model.py "$KEY" \
       --pack "$PACK" --out "$OUT" --repo "$REPO" "$@" )
   date -u +"end   %H:%M:%S UTC"
