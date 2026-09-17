@@ -30,7 +30,7 @@ REPO_URL = "https://github.com/DeepanIsCool/longaudiobench.git"
 # kernel, and no two models are guaranteed to have been scored by the same code.
 # git clone --depth 1 --branch takes a tag or a branch but not a bare sha, so the
 # pin is a tag. Move it deliberately, never as a side effect of committing.
-REPO_REF = "paper-run-15"
+REPO_REF = "paper-run-16"
 ITEM_PACK_DATASET = "undertone-item-pack"
 
 # HARD pin, not a floor. ">=4.57.1" resolved to transformers 5.0.0 on Kaggle and
