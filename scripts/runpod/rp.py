@@ -212,6 +212,10 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
             "RESTORE_DATASET": os.environ.get("RESTORE_DATASET", ""),
             # Optional fingerprint the step asserts against its pack.
             "FP": os.environ.get("FP", ""),
+            # Output directory on the volume, one per step. DONE markers are
+            # per model key, and the 2x2 reuses step 2's keys: on a shared
+            # directory step 5 would skip every model as already done.
+            "OUT": os.environ.get("OUT", "/workspace/out"),
             "HF_HOME": "/workspace/hf",
             "UNDERTONE_ASR_CACHE": "/workspace/asr_cache",
             "PYTORCH_ALLOC_CONF": "expandable_segments:True",
