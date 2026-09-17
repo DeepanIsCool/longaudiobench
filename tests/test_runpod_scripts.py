@@ -56,7 +56,7 @@ class TestHelp:
 
 class TestBashSyntax:
     @pytest.mark.parametrize("script", sorted(p.name for p in EXPERIMENTS.glob("*.sh")))
-    def test_driver_parses(self, script):
+    def test_driver_parses(self, script):   # includes chain.sh
         out = subprocess.run(["bash", "-n", str(EXPERIMENTS / script)],
                              capture_output=True, text=True)
         assert out.returncode == 0, out.stderr
@@ -67,7 +67,7 @@ class TestBashSyntax:
         assert out.returncode == 0, out.stderr
 
     def test_every_driver_sources_bootstrap_and_finishes(self):
-        for p in EXPERIMENTS.glob("*.sh"):
+        for p in EXPERIMENTS.glob("0*.sh"):   # chain.sh runs on the laptop
             text = p.read_text()
             assert "bootstrap.sh" in text, p.name
             assert text.rstrip().endswith("finish"), f"{p.name} must end with finish"
