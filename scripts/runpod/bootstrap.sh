@@ -53,7 +53,10 @@ setup() {
   fi
   # No pack means every model fails after a venv build each. Say so once
   # and finish; the watchdog terminates on RUN_COMPLETE within a minute.
-  if ! ls "$PACK"/*/item_pack.jsonl "$PACK"/item_pack.jsonl >/dev/null 2>&1; then
+  # find, not ls: `ls a/*/x b/x` exits non-zero when any argument is
+  # missing, so a pack unzipped flat read as missing and the third twins
+  # launch aborted a successful download. $0.02.
+  if [ -z "$(find "$PACK" -maxdepth 3 -name item_pack.jsonl 2>/dev/null)" ]; then
     echo "PACK MISSING under $PACK after download of $PACK_DATASET - aborting before any model"
     finish
   fi

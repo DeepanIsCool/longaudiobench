@@ -180,3 +180,34 @@ class TestDatasetSlugs:
         for f in list(RUNPOD.glob("*.sh")) + list(EXPERIMENTS.glob("*.sh")):
             for m in re.finditer(r"([a-z0-9]+)/undertone-item-pack", f.read_text()):
                 assert m.group(1) in (user, "<user>"), f"{f.name}: {m.group(0)} is not under {user}"
+
+
+class TestPackCheck:
+    """The pack-present test in bootstrap.sh, run against both layouts Kaggle
+    has produced: flat (v1: item_pack.jsonl at the root) and nested
+    (item_pack/item_pack.jsonl). The third twins launch aborted a good
+    download because `ls` with an unmatched glob exits non-zero."""
+
+    def _check(self, tmp_path, rel):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("{}")
+        src = (RUNPOD / "bootstrap.sh").read_text()
+        line = next(l for l in src.splitlines() if "-name item_pack.jsonl" in l and "if [" in l)
+        cond = line.strip()[3:].rstrip("; then").strip()
+        out = subprocess.run(["bash", "-c", f'PACK="{tmp_path}"; if {cond}; then echo MISSING; else echo FOUND; fi'],
+                             capture_output=True, text=True)
+        return out.stdout.strip()
+
+    def test_flat_layout_is_found(self, tmp_path):
+        assert self._check(tmp_path, "item_pack.jsonl") == "FOUND"
+
+    def test_nested_layout_is_found(self, tmp_path):
+        assert self._check(tmp_path, "item_pack/item_pack.jsonl") == "FOUND"
+
+    def test_empty_is_missing(self, tmp_path):
+        src = (RUNPOD / "bootstrap.sh").read_text()
+        line = next(l for l in src.splitlines() if "-name item_pack.jsonl" in l and "if [" in l)
+        cond = line.strip()[3:].rstrip("; then").strip()
+        out = subprocess.run(["bash", "-c", f'PACK="{tmp_path}"; if {cond}; then echo MISSING; else echo FOUND; fi'],
+                             capture_output=True, text=True)
+        assert out.stdout.strip() == "MISSING"
