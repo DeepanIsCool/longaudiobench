@@ -15,11 +15,12 @@ PY=.venv/bin/python
 for i in $(seq 1 "$MAX_TRIES"); do
   CLOUD=$([ $((i % 2)) -eq 1 ] && echo COMMUNITY || echo SECURE)
   OUT=$($PY scripts/runpod/rp.py launch --name "$NAME" --script "$SCRIPT" \
-        --planned "$PLANNED" --ref "${REF:-paper-run-16}" --cloud "$CLOUD" 2>&1)
+        --planned "$PLANNED" --ref "${REF:-paper-run-16}" --cloud "$CLOUD" \
+        ${IMAGE:+--image "$IMAGE"} 2>&1)
   if POD=$(echo "$OUT" | grep -oE '^launched [a-z0-9]+' | awk '{print $2}') && [ -n "$POD" ]; then
     pkill -f "watchdog.py $POD" 2>/dev/null; pkill -f "pull.py $POD" 2>/dev/null
     echo "$OUT"
-    echo "$POD" > .pod_id
+    echo "$POD" > "${POD_ID_FILE:-.pod_id}"
     nohup $PY scripts/runpod/watchdog.py "$POD" "$EXPECTED" "$DEADLINE" "$DEST" > "results/watchdog_${NAME}.log" 2>&1 &
     nohup $PY scripts/runpod/pull.py "$POD" --dest "$DEST" --minutes "$DEADLINE" > "results/pull_${NAME}.log" 2>&1 &
     echo "watchdog and pull armed for $POD (logs: results/watchdog_${NAME}.log, results/pull_${NAME}.log)"

@@ -73,6 +73,7 @@ _kag/
 # Runpod session state. .rp_key holds the API key; .pod_id the live pod.
 .rp_key
 .pod_id
+.pod_id_*
 
 # The findings package is 9 MB of data plus a PDF; track it deliberately
 # with `git add -f` when a version is final, not by default.
