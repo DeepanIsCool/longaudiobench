@@ -22,17 +22,13 @@ carries every step; a lost pod restores from `undertone-restore` and resumes.
 | 2 | `03_all_items.sh` | Ladder + main sweep + question-only on the 338 new items, one load per model. 12 models. **Running.** | ~$10.30 | $10.70 |
 | 3 | `03b_twins_all_items.sh` | Four text twins on the 338. | $1.20 | $11.90 |
 | 4 | `04_band_600.sh` | 600 s band: ladder + main sweep, 9 models; then the four twins. 85 items. | $5.40 | $17.30 |
-| 5 | `02_prominence_2x2.sh` ×3 packs | Boost (+3/+6/+9) and coarse competitor (−6/−12/−24/removed) on **all 493 items**, 11 models. Runs last; resumable, so a shortfall banks what it finishes. | $4.90 | $22.20 |
+| 5 | `02_prominence_2x2.sh` ×3 packs | Boost (+3/+6/+9), coarse competitor (−6/−12/−24/removed) and the fine 0…−12 sweep on **all 493 items**, 11 models. Runs last; resumable. | $7.70 | $25.00 |
 
-That is the whole protocol, old and new, on the same items for every model.
-The fine 0…−12 sweep is the one thing not run: a precision refinement, and
-at this budget every extra level across 493 items is $0.70.
+That is the whole protocol, old and new, on the same items for every model,
+nothing abbreviated.
 
 ## Not in this budget, and why
 
-- **The fine 0…−12 dB sweep** (~$3). The stimulus audit shows this is the
-  only exactly-dosed region, so a psychometric threshold would come from
-  here; it is a refinement of a result the coarse arms already establish.
 - **Aero's sweep, Audio-Flamingo's L3/L4** ($1). Aero has no recorded
   competitor spans, so it cannot be swept; AF-Next needs 17 GiB on one device
   and its own transformers pin.
