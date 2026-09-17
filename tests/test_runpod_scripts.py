@@ -152,7 +152,8 @@ class TestWatchdogLogic:
         assert complete
 
     def test_cells_counted_in_any_jsonl(self, monkeypatch):
-        dirs = {"m1": {"results.jsonl": '{"item_id":1}\n{"item_id":2}\n',
+        # Ladder rows start with run_id, sweep rows with item_id. Both count.
+        dirs = {"m1": {"results.jsonl": '{"run_id":"p","item_id":1}\n{"run_id":"p","item_id":2}\n',
                        "sweep_competitor_default.jsonl": '{"item_id":1}\n'}}
         cells, *_ = self._state(monkeypatch, "=== RUN START ===\n", model_dirs=dirs)
         assert cells == 3

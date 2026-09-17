@@ -109,7 +109,11 @@ def state():
         for f in re.findall(r'href="([^"]+\.jsonl)"', curl([f"{U}/{m}/"])):
             body = curl([f"{U}/{m}/{f}"], 30)
             if body and "<!DOCTYPE" not in body[:20]:
-                cells += body.count('{"item_id"')
+                # Any row: ladder rows begin {"run_id", sweep rows {"item_id".
+                # Matching the opening brace counted only sweeps, and a
+                # logit-scored model's silent ladder read as a 40-minute
+                # stall. Stopped a healthy Omni-7B mid-ladder.
+                cells += body.count('"item_id"')
     log = curl([f"{U}/run.log"])
     # Only the current run's section: everything after the last banner.
     tail = log.rsplit("=== RUN START ", 1)[-1]
