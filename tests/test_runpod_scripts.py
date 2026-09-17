@@ -230,7 +230,8 @@ class TestPinsFile:
         pins = {l.split("|")[0] for l in (RUNPOD / "pins.txt").read_text().splitlines()
                 if l and not l.startswith("#")}
         for f in EXPERIMENTS.glob("*.sh"):
-            for key in re.findall(r"\b([a-z0-9]+_[a-z0-9_]+)\b", f.read_text()):
+            code = "\n".join(l for l in f.read_text().splitlines() if not l.lstrip().startswith("#"))
+            for key in re.findall(r"\b([a-z0-9]+_[a-z0-9_]+)\b", code):
                 if key.startswith(("cascaded_", "qwen", "moss", "gemma", "phi4", "voxtral", "aero", "audio_flamingo")):
                     assert key in pins, f"{f.name}: {key} has no pins"
 
