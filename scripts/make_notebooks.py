@@ -30,7 +30,7 @@ REPO_URL = "https://github.com/DeepanIsCool/longaudiobench.git"
 # kernel, and no two models are guaranteed to have been scored by the same code.
 # git clone --depth 1 --branch takes a tag or a branch but not a bare sha, so the
 # pin is a tag. Move it deliberately, never as a side effect of committing.
-REPO_REF = "paper-run-10"
+REPO_REF = "paper-run-11"
 ITEM_PACK_DATASET = "undertone-item-pack"
 
 # HARD pin, not a floor. ">=4.57.1" resolved to transformers 5.0.0 on Kaggle and
@@ -1158,7 +1158,7 @@ def build_cascaded_notebook() -> dict:
     return notebook([
         md(CASCADED_HEADER),
         code(CELL_PIP.format(pips="\n".join(
-            f'%pip install -q "{p}"' for p in BASE_PIP + ["faster-whisper>=1.0.0"]))),
+            f'%pip install -q "{p}"' for p in BASE_PIP + ["faster-whisper>=1.0.0", "sentencepiece>=0.2.0", "protobuf>=4.21"]))),
         code(CELL_ENV.format(token_block="")),
         code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
         code(CELL_PACK.format(pack=ITEM_PACK_DATASET)

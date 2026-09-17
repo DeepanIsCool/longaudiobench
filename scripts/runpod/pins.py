@@ -29,7 +29,11 @@ def generate() -> dict[str, str]:
         pins = list(mk.META.get(key, {}).get("pip", mk.BASE_PIP))
         if key.startswith("cascaded_"):
             # Mirrors build_cascaded_notebook: the control adds the ASR engine.
-            pins.append("faster-whisper>=1.0.0")
+            # sentencepiece + protobuf: Mistral-7B and Gemma-2 tokenizers are
+            # sentencepiece-based and transformers cannot build the fast
+            # tokenizer without them. Qwen's never needed it, so the first
+            # cascade run never showed it. Mistral twin failed on the pod.
+            pins += ["faster-whisper>=1.0.0", "sentencepiece>=0.2.0", "protobuf>=4.21"]
         out[key] = " ".join(pins)
     return out
 

@@ -14,7 +14,7 @@ qwen2_5_omni_3b|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile
 qwen2_5_omni_7b|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1
 qwen2_audio_7b|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1
 voxtral_mini_3b|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1 mistral-common[audio]>=1.8.1
-cascaded_whisper_gemma2_9b|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1 faster-whisper>=1.0.0
-cascaded_whisper_llama31_8b|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1 faster-whisper>=1.0.0
-cascaded_whisper_llm|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1 faster-whisper>=1.0.0
-cascaded_whisper_mistral_7b|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1 faster-whisper>=1.0.0
+cascaded_whisper_gemma2_9b|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1 faster-whisper>=1.0.0 sentencepiece>=0.2.0 protobuf>=4.21
+cascaded_whisper_llama31_8b|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1 faster-whisper>=1.0.0 sentencepiece>=0.2.0 protobuf>=4.21
+cascaded_whisper_llm|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1 faster-whisper>=1.0.0 sentencepiece>=0.2.0 protobuf>=4.21
+cascaded_whisper_mistral_7b|transformers==4.57.1 accelerate>=1.0.0 librosa>=0.10.2 soundfile>=0.12.1 faster-whisper>=1.0.0 sentencepiece>=0.2.0 protobuf>=4.21
