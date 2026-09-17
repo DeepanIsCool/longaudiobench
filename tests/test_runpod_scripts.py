@@ -45,7 +45,7 @@ class TestHelp:
         from undertone import sweep
 
         levels = {"default", "calibrated", "boost"}
-        specs = re.findall(r"--sweep\s+(\S+)", "\n".join(
+        specs = re.findall(r"--sweep\s+([a-z]+:?[a-z]*)", "\n".join(
             p.read_text() for p in EXPERIMENTS.glob("*.sh")))
         assert specs, "no --sweep in any driver"
         for spec in specs:

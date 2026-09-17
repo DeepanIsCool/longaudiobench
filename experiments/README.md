@@ -7,26 +7,31 @@ Ordered cheapest-and-safest first so that a blown run late costs nothing
 already banked. Costs are for one A40 or A6000 on Runpod community cloud at $0.33-0.35/h (the live price on 2026-09-17; the table was costed at $0.40, so each step should come in ~12% under),
 scaled from the first paper run (12 models, ladder + sweep, ~$3.06).
 
-| # | script | what it adds | runtime | cost | running |
-| --- | --- | --- | --- | --- | --- |
-| 0 | *(done — Kaggle, free)* | Expansion pack: **338 new items** from every remaining AMI meeting (scenario + non-scenario), leak-filtered. Total is now **408**: C1 103, P2 125, P4 106, P3 54, P1 20. This is the corpus ceiling. `data/item_pack_v2/`, fingerprint `0b14538c9854`. | 2 h | $0 | $0 |
-| 1 | `01_text_twins.sh` | Three more text LLMs behind the same Whisper. Generalises the salience-prior result beyond one model pair. | ~40 min | $1 | $1 |
-| 2 | `02_prominence_2x2.sh` | Boost the needle; attenuate the competitor; fine sweep in the calibrated region. Turns "prominence breaks it" into "prominence is relative, has a threshold in dB, and raising it repairs the failure". On the original 70. | ~5 h | $4 | $5 |
-| 3 | `03_new_items.sh` | Ladder on the 338 new items, 12 models. Resolves the two claims that failed the sign test — abstention rises with context (9/12, p=.15) and the C1 conditional. P1 stays at 20, so "quiet items abstain more" (8/11) remains a trend. | ~22 h | $8.50 | $13.50 |
-| 4 | `04_band_600.sh` | Ladder at 600 s on the **85-item band pack** (`data/item_pack_600/`), the **9 models that can hear it** (Gemma ×2 and Qwen2-Audio truncate at 30 s either way). Makes "needle type explains more variance than duration" testable — and carries **21 P1 items**, more than the whole 300 s corpus. | ~9 h | $4.50 | $18 |
-| — | reserve | untouched | | $2 | $20 |
+Every table the paper already has, on the same items for every model — then the
+new 2×2 last, with whatever is left. Costed at the secure-cloud A40 price this
+pod actually runs at, $0.49/h. One pod (`--name undertone`) carries every step
+by stop/resume.
 
-The pack came in larger than planned, so step 3 grew from $4 to $8.50 and step 4 shrank to four
-models. Running step 4 on all twelve is another $4 and worth it if the reserve goes unused.
+| # | script | what it does | cost | running |
+| --- | --- | --- | --- | --- |
+| 1 | `01_text_twins.sh` | Four text twins on the original 70 items. **Also the end-to-end test of the chain.** | $0.60 | $0.60 |
+| 2 | `03_all_items.sh` | **Ladder + sweep + question-only on the 338 new items, one model load each.** 12 models (sweep 11, QO the same 4 as before). This is what makes every table 408 items for every model. | $14.50 | $15.10 |
+| 3 | `03b_twins_all_items.sh` | Four text twins on the 338 new items. | $1.10 | $16.20 |
+| 4 | `04_band_600.sh` | 600 s band: ladder for the 9 models that can hear it, then the four twins, on the 85-item band pack. | $3.60 | $19.80 |
+| 5 | `02_prominence_2x2.sh` | Boost / competitor / calibrated sweeps on the original 70 items, 11 models. A self-contained experiment; runs last so it's the one that waits if anything slips. | $2.45 | $22.25 |
 
-After step 2 the paper already has a new contribution for $5. The step-4
-model list is ordered so the first six span the RetrievalCost range and both
-matched pairs.
+After step 4 the paper's existing protocol is uniform: 408 items × 12 models
+at 300 s, 85 × 9 at 600 s, the same four twins and the same four QO models
+throughout. Step 5 adds the new causal arms.
 
-## Cut from the plan, and why
+## Not in this budget, and why
 
-- **Aero's sweep, Audio-Flamingo's L3/L4** ($1). Tidiness. The sweep is
-  11/11 and the ladder 12/12 on everything that holds.
+- **The 2×2 on all 408 items** (~$11). It is a self-contained experiment and
+  70 items gave 11/11 on every sign test it will be judged by; more items
+  sharpen the threshold estimate, not the finding.
+- **Aero's sweep, Audio-Flamingo's L3/L4** ($1). Aero has no recorded
+  competitor spans, so it cannot be swept; AF-Next needs 17 GiB on one device
+  and its own transformers pin.
 - **A 30B open model** ($3). Parameter count is already not significant
   (r=+0.43, p≈.19); a 13th model of the same kind adds nothing and a 30B one
   is defensive rather than novel.

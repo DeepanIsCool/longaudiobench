@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Step 4 of the $20 plan. ~$4.50 for the 9 models that can hear 600 s.
+# The 600 s band: ladder for the 9 models that can hear it, then the four
+# text twins on the same 85 items. ~$3.60 at $0.49/h.
 #
 # The ladder at a 600 s duration band. Every item so far is a 5-minute
 # haystack, so "needle type explains more variance than recording length"
@@ -22,8 +23,8 @@
 #
 # Launch:  PACK_DATASET=deepansadhukhanjeet/undertone-item-pack-600 \
 #          python scripts/runpod/rp.py launch --name undertone \
-#              --script experiments/04_band_600.sh --planned 4.50
-# Watch:   python scripts/runpod/watchdog.py <pod> 9 720
+#              --script experiments/04_band_600.sh --planned 3.60
+# Watch:   python scripts/runpod/watchdog.py <pod> 13 720
 # Pull:    python scripts/runpod/pull.py <pod> --dest results/exp04_band600 --minutes 720
 source "$(dirname "$0")/../scripts/runpod/bootstrap.sh"
 setup
@@ -36,5 +37,9 @@ MODELS=${MODELS:-"moss_audio_8b_thinking moss_audio_8b_instruct qwen2_5_omni_7b 
   qwen2_5_omni_3b phi4_multimodal aero_1_audio"}
 for KEY in $MODELS; do
   run_model "$KEY" --ladder
+done
+for KEY in cascaded_whisper_llm cascaded_whisper_mistral_7b \
+           cascaded_whisper_llama31_8b cascaded_whisper_gemma2_9b; do
+  run_model "$KEY" --ladder --skip-preflight
 done
 finish
