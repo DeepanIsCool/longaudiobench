@@ -136,8 +136,11 @@ def kill_all():
     return killed
 
 
-def guard(reserve=DEFAULT_RESERVE_USD, planned=0.0):
-    """Refuse to launch when balance - planned spend would breach the reserve."""
+def guard(reserve=DEFAULT_RESERVE_USD, planned=0.0, name=None):
+    """Refuse to launch when balance - planned spend would breach the reserve,
+    or when a pod of the same name is already running. A different name is
+    a deliberate second pod (the torch 2.8 one for Aero and Audio-Flamingo
+    runs beside the main one) and is allowed."""
     bal, rate = balance()
     print(f"balance ${bal}   current spend ${rate}/hr")
     if bal is None:
@@ -145,11 +148,12 @@ def guard(reserve=DEFAULT_RESERVE_USD, planned=0.0):
     if bal - planned < reserve:
         sys.exit(f"balance ${bal} minus planned ${planned:.2f} is under the "
                  f"${reserve:.2f} reserve - not launching")
-    live = pods()
+    live = [p for p in pods() if name is None or p.get("name") == name]
     if live:
-        sys.exit(f"{len(live)} pod already running: {[p['id'] for p in live]}. "
-                 "Stop it before launching another.")
-    print("guard passed: balance sufficient, no pods running")
+        sys.exit(f"pod {name or ''} already running: {[p['id'] for p in live]}. "
+                 "Stop it before launching another with this name.")
+    others = [p for p in pods() if p.get("name") != name]
+    print(f"guard passed: balance sufficient; {len(others)} other pod(s) running")
 
 
 def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
