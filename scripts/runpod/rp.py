@@ -34,7 +34,12 @@ GQL = "https://api.runpod.io/graphql"
 # account after the planned spend. It was set to 6.00 when the balance was
 # 10.00 and then blocked a $1 job at a 5.64 balance; the ceiling has to track
 # what is left, not what there was. Override per launch with --reserve.
-DEFAULT_RESERVE_USD = 3.00
+# The whole balance is spendable; this is the floor a launch may not
+# breach, not money set aside. It is small because the error budget is
+# enforced elsewhere - a stall bills ~$0.25 before the watchdog kills it, a
+# restart loop ~$0.02 - and the pre-launch guard only has to stop a launch
+# that could not complete.
+DEFAULT_RESERVE_USD = 1.00
 # 48 GB, sm86, $0.33-0.35/h on community cloud. Either is fine: same
 # architecture generation, same dtype path, same headroom. The API takes a
 # list and gives whichever has stock.

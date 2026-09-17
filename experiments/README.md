@@ -4,7 +4,7 @@ What to run, in order, to take the UNDERTONE paper from "one prominence
 experiment on 70 items" to "a 2x2 causal design with a duration axis, a
 general cascade result, and enough items for the weak claims to resolve".
 Ordered cheapest-and-safest first so that a blown run late costs nothing
-already banked. Costs are for one A40 on Runpod community cloud at ~$0.40/h,
+already banked. Costs are for one A40 or A6000 on Runpod community cloud at $0.33-0.35/h (the live price on 2026-09-17; the table was costed at $0.40, so each step should come in ~12% under),
 scaled from the first paper run (12 models, ladder + sweep, ~$3.06).
 
 | # | script | what it adds | runtime | cost | running |
