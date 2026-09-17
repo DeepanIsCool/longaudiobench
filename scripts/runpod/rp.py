@@ -171,7 +171,7 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
     the API has renamed fields before and this file cannot be tested
     without a live key.
     """
-    guard(reserve, planned)
+    guard(reserve, planned, name)
     hf = os.environ.get("HF_TOKEN", "")
     kg = os.environ.get("KAGGLE_JSON", "")
     if not hf:

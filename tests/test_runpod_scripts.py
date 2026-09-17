@@ -258,3 +258,12 @@ class TestPackRouting:
                 assert "undertone-item-pack-v2" in text, f.name
             if "band_600" in f.name:
                 assert "undertone-item-pack-600" in text, f.name
+
+
+class TestGuardScope:
+    def test_launch_passes_its_name_to_the_guard(self):
+        """Two pods run at once (main + torch28). The guard must refuse only a
+        duplicate of the same name; the launch path forgot to pass it once."""
+        src = (RUNPOD / "rp.py").read_text()
+        body = src[src.index("def launch("):src.index("def main(")]
+        assert "guard(reserve, planned, name)" in body
