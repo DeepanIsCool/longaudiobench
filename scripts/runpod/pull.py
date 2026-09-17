@@ -46,13 +46,19 @@ def mirror(remote_dir, local_dir):
             continue
         out = os.path.join(local_dir, f)
         prev = os.path.getsize(out) if os.path.exists(out) else -1
-        code = get(f"{remote_dir}{f}", out).strip()
-        now = os.path.getsize(out) if os.path.exists(out) else 0
-        if code != "200" or now == 0:
-            if os.path.exists(out):
-                os.remove(out)
-        elif now != prev:
-            print(f"pulled {remote_dir}{f} {now}B", flush=True)
+        # Fetch to a temp file and replace only on a good 200. The first
+        # version wrote in place and deleted the local copy on any failure -
+        # and once a pod stops, every fetch is a 502, so the pass right after
+        # a stop deleted Audio-Flamingo's five finished result files.
+        tmp = out + ".part"
+        code = get(f"{remote_dir}{f}", tmp).strip()
+        got = os.path.getsize(tmp) if os.path.exists(tmp) else 0
+        if code == "200" and got > 0:
+            os.replace(tmp, out)
+            if got != prev:
+                print(f"pulled {remote_dir}{f} {got}B", flush=True)
+        elif os.path.exists(tmp):
+            os.remove(tmp)
 
 
 deadline = time.time() + a.minutes * 60
