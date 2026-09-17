@@ -31,12 +31,12 @@ for spec in "${STEPS[@]}"; do
   echo "$(date -u +%FT%TZ) === $NAME: launch ==="
   launch "$NAME" "$PACK" "$FP" "$EXPECTED" "$DEADLINE" "$PLANNED" "" || { echo "$NAME: launch failed"; exit 1; }
   wait_for_stop
-  scripts/runpod/bank.sh "$DEST" "$TAG" | tail -2
+  scripts/runpod/bank.sh "$DEST" "$TAG" undertone-restore-t28 | tail -2
   N=$(done_count "$DEST"); echo "$(date -u +%FT%TZ) $NAME: $N/$EXPECTED DONE"
   if [ "$N" -lt "$EXPECTED" ]; then
     echo "$NAME: short; retrying once"
     launch "$NAME" "$PACK" "$FP" "$EXPECTED" "$DEADLINE" "$PLANNED" "$RESTORE" || exit 1
-    wait_for_stop; scripts/runpod/bank.sh "$DEST" "$TAG" | tail -2
+    wait_for_stop; scripts/runpod/bank.sh "$DEST" "$TAG" undertone-restore-t28 | tail -2
     echo "$(date -u +%FT%TZ) $NAME after retry: $(done_count "$DEST")/$EXPECTED DONE"
   fi
 done

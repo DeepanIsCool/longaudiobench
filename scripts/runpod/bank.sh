@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Bank a pulled results directory into the report package, with checks.
 #
-#   scripts/runpod/bank.sh results/exp03_all v2
+#   scripts/runpod/bank.sh results/exp03_all v2 [restore-slug]
 #
 # Copies every <model>/<task>.jsonl to UNDERTONE_report/data/<pack>/<task>/
 # <model>.jsonl, refuses rows whose pack_fingerprint disagrees with the
 # pack, prints row counts, and pushes the restore dataset so the tree is
 # also off-laptop. Idempotent: run it after every model, every step.
 set -u
-SRC=$1; PACK=$2
+SRC=$1; PACK=$2; SLUG=${3:-undertone-restore}
 cd "$(dirname "$0")/../.."
 case "$PACK" in
   v1)  FP=56bd324cf6a3;; v2) FP=0b14538c9854;; 600) FP=7e4fd5c5c30c;;
@@ -43,4 +43,4 @@ for mdir in sorted(glob.glob(os.path.join(src, "*", ""))):
         banked += 1
 print(f"banked {banked} files into {dest}")
 PY
-scripts/runpod/push_restore.sh "$SRC" 2>&1 | tail -1
+scripts/runpod/push_restore.sh "$SRC" "$SLUG" 2>&1 | tail -1
