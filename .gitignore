@@ -78,3 +78,4 @@ _kag/
 # The findings package is 9 MB of data plus a PDF; track it deliberately
 # with `git add -f` when a version is final, not by default.
 /UNDERTONE_report.zip
+.gemini_key

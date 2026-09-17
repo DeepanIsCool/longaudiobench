@@ -19,6 +19,17 @@ wait_for_stop() {
   pkill -f "pull.py $POD" 2>/dev/null || true
   echo "$(date -u +%FT%TZ) pod $POD stopped: $(tail -1 results/watchdog_torch28.log)"
 }
+attach_if_running() {  # name pod_id_file expected deadline dest -> 0 if attached
+  local NAME=$1 PIDF=$2 EXPECTED=$3 DEADLINE=$4 DEST=$5
+  local POD; POD=$(cat "$PIDF" 2>/dev/null || true); [ -z "$POD" ] && return 1
+  export RUNPOD_API_KEY=$(cat .rp_key)
+  .venv/bin/python scripts/runpod/rp.py status 2>/dev/null | grep -q "$POD  $NAME  RUNNING" || return 1
+  pgrep -f "watchdog.py $POD" >/dev/null || nohup .venv/bin/python scripts/runpod/watchdog.py "$POD" "$EXPECTED" "$DEADLINE" "$DEST" > "results/watchdog_${NAME}.log" 2>&1 &
+  pgrep -f "pull.py $POD" >/dev/null || nohup .venv/bin/python scripts/runpod/pull.py "$POD" --dest "$DEST" --minutes "$DEADLINE" > "results/pull_${NAME}.log" 2>&1 &
+  echo "$(date -u +%FT%TZ) attached to running pod $POD ($NAME); guards armed"
+  return 0
+}
+
 done_count() { find "$1" -maxdepth 2 -name DONE 2>/dev/null | wc -l | tr -d ' '; }
 launch() {  # name pack fp expected deadline planned restore
   OUT=/workspace/out_$1 PACK_DATASET=$2 FP=$3 RESTORE_DATASET=$7 POD_ID_FILE=.pod_id_torch28 \
@@ -29,7 +40,9 @@ for spec in "${STEPS[@]}"; do
   DEST=results/exp_$NAME
   if [ "$(done_count "$DEST")" -ge "$EXPECTED" ]; then echo "$NAME: already done, skipping"; continue; fi
   echo "$(date -u +%FT%TZ) === $NAME: launch ==="
-  launch "$NAME" "$PACK" "$FP" "$EXPECTED" "$DEADLINE" "$PLANNED" "" || { echo "$NAME: launch failed"; exit 1; }
+  if ! attach_if_running torch28 .pod_id_torch28 "$EXPECTED" "$DEADLINE" "$DEST"; then
+    launch "$NAME" "$PACK" "$FP" "$EXPECTED" "$DEADLINE" "$PLANNED" "" || { echo "$NAME: launch failed"; exit 1; }
+  fi
   wait_for_stop
   scripts/runpod/bank.sh "$DEST" "$TAG" undertone-restore-t28 | tail -2
   N=$(done_count "$DEST"); echo "$(date -u +%FT%TZ) $NAME: $N/$EXPECTED DONE"

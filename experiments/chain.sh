@@ -34,6 +34,17 @@ wait_for_stop() {  # until no watchdog is running for the current pod
   echo "$(date -u +%FT%TZ) pod $POD stopped: $(tail -1 results/watchdog_undertone.log)"
 }
 
+attach_if_running() {  # name pod_id_file expected deadline dest -> 0 if attached
+  local NAME=$1 PIDF=$2 EXPECTED=$3 DEADLINE=$4 DEST=$5
+  local POD; POD=$(cat "$PIDF" 2>/dev/null || true); [ -z "$POD" ] && return 1
+  export RUNPOD_API_KEY=$(cat .rp_key)
+  .venv/bin/python scripts/runpod/rp.py status 2>/dev/null | grep -q "$POD  $NAME  RUNNING" || return 1
+  pgrep -f "watchdog.py $POD" >/dev/null || nohup .venv/bin/python scripts/runpod/watchdog.py "$POD" "$EXPECTED" "$DEADLINE" "$DEST" > "results/watchdog_${NAME}.log" 2>&1 &
+  pgrep -f "pull.py $POD" >/dev/null || nohup .venv/bin/python scripts/runpod/pull.py "$POD" --dest "$DEST" --minutes "$DEADLINE" > "results/pull_${NAME}.log" 2>&1 &
+  echo "$(date -u +%FT%TZ) attached to running pod $POD ($NAME); guards armed"
+  return 0
+}
+
 done_count() { find "$1" -maxdepth 2 -name DONE 2>/dev/null | wc -l | tr -d ' '; }
 
 run_step() {  # name script pack fp tag expected deadline planned
@@ -45,10 +56,12 @@ run_step() {  # name script pack fp tag expected deadline planned
     echo "$(date -u +%FT%TZ) $NAME: already $EXPECTED/$EXPECTED DONE, skipping"; return 0
   fi
   echo "$(date -u +%FT%TZ) === $NAME: launch ($PLANNED planned, $EXPECTED models, $DEADLINE min) ==="
-  # First launch: a fresh output directory on the volume and no restore. A
-  # restore here would bring the previous step's DONE markers along.
-  OUT=/workspace/out_$NAME PACK_DATASET=$PACK FP=$FP RESTORE_DATASET= \
-    scripts/runpod/launch_when_available.sh undertone "$SCRIPT" "$PLANNED" "$EXPECTED" "$DEADLINE" "$DEST" || { echo "$NAME: launch failed"; return 1; }
+  if ! attach_if_running undertone .pod_id "$EXPECTED" "$DEADLINE" "$DEST"; then
+    # First launch: a fresh output directory on the volume and no restore. A
+    # restore here would bring the previous step's DONE markers along.
+    OUT=/workspace/out_$NAME PACK_DATASET=$PACK FP=$FP RESTORE_DATASET= \
+      scripts/runpod/launch_when_available.sh undertone "$SCRIPT" "$PLANNED" "$EXPECTED" "$DEADLINE" "$DEST" || { echo "$NAME: launch failed"; return 1; }
+  fi
   wait_for_stop
   scripts/runpod/bank.sh "$DEST" "$TAG" | tail -2
   local N; N=$(done_count "$DEST")
@@ -67,6 +80,7 @@ run_step() {  # name script pack fp tag expected deadline planned
 
 # Step 2 is already running: wait for it, bank it, and verify before moving on.
 if [ "$(done_count results/exp03_all)" -lt 12 ]; then
+  attach_if_running undertone .pod_id 12 2400 results/exp03_all || true
   echo "$(date -u +%FT%TZ) waiting for the running step 2 to stop"
   wait_for_stop
 fi
