@@ -85,9 +85,23 @@ class AudioFlamingoNext(ModelAdapter):
             f"transformers release that registers it. Tried:\n  "
             + "\n  ".join(errors))
 
+    # The HF processor cuts audio into 30 s chunks and masks the padding in
+    # the last one. A clip a hair over a multiple of 30 s - 60.0001 s - makes
+    # a third chunk with ~0 real frames: a fully masked attention row, NaN,
+    # then a garbage index and a device-side assert that poisons the CUDA
+    # context. Ladder windows are 20/120/300 s and never hit it; 31 of 70
+    # sweep windows did, on the first one every level after it died. Padding
+    # with zeros to the next multiple of the chunk length keeps every chunk
+    # non-degenerate. Trailing silence changes nothing the item measures.
+    CHUNK_S = 30.0
+
     def build_inputs(self, audio: np.ndarray, prompt: str, sr: int = SAMPLE_RATE) -> dict:
         import torch
 
+        chunk = int(self.CHUNK_S * sr)
+        rem = len(audio) % chunk
+        if rem:
+            audio = np.concatenate([audio, np.zeros(chunk - rem, dtype=audio.dtype)])
         path = as_temp_wav(audio, sr)
         try:
             conversation = [[{

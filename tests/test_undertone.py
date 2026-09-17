@@ -511,3 +511,50 @@ class TestPackFingerprint:
         back = ItemPack.load(tmp_path / "p.jsonl")
         assert back.meta["fingerprint"] == pack.fingerprint
         assert back.meta["n_items"] == 3
+
+
+import numpy as np
+
+
+class TestAudioFlamingoChunkPadding:
+    """A clip a hair over a multiple of 30 s made a near-empty third chunk and
+    a device-side assert. build_inputs pads to the next multiple."""
+
+    def _adapter(self):
+        from undertone.adapters.audio_flamingo import AudioFlamingoNext
+        a = AudioFlamingoNext.__new__(AudioFlamingoNext)
+        seen = {}
+
+        class P:
+            def apply_chat_template(self, conv, **kw):
+                import soundfile as sf
+                data, sr = sf.read(conv[0][0]["content"][1]["path"])
+                seen["n"] = len(data); seen["sr"] = sr
+                return {"input_ids": np.zeros((1, 4), dtype=np.int64)}
+        a.processor = P()
+        a.model = type("M", (), {"dtype": None, "device": "cpu"})()
+        a.audio_float_keys = ()
+        return a, seen
+
+    def test_fractional_window_is_padded_to_the_next_30s(self, monkeypatch):
+        import sys, types
+        monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+        import undertone.adapters.audio_flamingo as af
+        monkeypatch.setattr(af, "move_to_device", lambda b, *a, **k: b)
+        monkeypatch.setattr(af, "primary_device", lambda m: "cpu")
+        a, seen = self._adapter()
+        sr = 16000
+        a.build_inputs(np.zeros(int(60.0001 * sr), dtype=np.float32), "q", sr)
+        assert seen["n"] == 90 * sr
+
+    @pytest.mark.parametrize("seconds", [20.0, 30.0, 120.0, 300.0])
+    def test_exact_lengths_are_untouched(self, seconds, monkeypatch):
+        import sys, types
+        monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+        import undertone.adapters.audio_flamingo as af
+        monkeypatch.setattr(af, "move_to_device", lambda b, *a, **k: b)
+        monkeypatch.setattr(af, "primary_device", lambda m: "cpu")
+        a, seen = self._adapter()
+        sr = 16000
+        a.build_inputs(np.zeros(int(seconds * sr), dtype=np.float32), "q", sr)
+        assert seen["n"] == (int(seconds * sr) if seconds >= 30 else 30 * sr)
