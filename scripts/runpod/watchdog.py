@@ -24,7 +24,13 @@ Five generations of this, each a real failure:
    start banner bootstrap.sh prints is counted; two banners is a restart,
    and a restart is always a kill. Nothing here is designed to run twice.
 
-    python scripts/runpod/watchdog.py <pod_id> <expected_ok> [deadline_min]
+    python scripts/runpod/watchdog.py <pod_id> <expected_ok> [deadline_min] [snapshot_dir]
+
+Before every termination it mirrors run.log and every model directory into
+snapshot_dir. The third abort of the twins step was silent because the
+puller's first pass is at 90 s and the kill came at 60 s; the watchdog is
+the one process guaranteed to be looking at the pod when it dies, so it is
+the one that must save the evidence.
 """
 import json
 import os
@@ -37,6 +43,7 @@ KEY = os.environ.get("RUNPOD_API_KEY") or sys.exit("RUNPOD_API_KEY is not set")
 POD = sys.argv[1]
 EXPECTED = int(sys.argv[2])
 DEADLINE_MIN = int(sys.argv[3]) if len(sys.argv) > 3 else 300
+SNAPSHOT = sys.argv[4] if len(sys.argv) > 4 else f"results/snapshot_{POD}"
 STALL_MIN = 40
 U = f"https://{POD}-8000.proxy.runpod.net"
 
@@ -64,8 +71,28 @@ def alive():
     return d.get("id") == POD and d.get("desiredStatus") != "TERMINATED"
 
 
+def snapshot():
+    """Mirror everything the pod serves. Cheap, and the only record of a
+    fast abort."""
+    os.makedirs(SNAPSHOT, exist_ok=True)
+    log = curl([f"{U}/run.log"], 60)
+    if log:
+        open(os.path.join(SNAPSHOT, "run.log"), "w").write(log)
+    for m in sorted(set(re.findall(r'href="([a-z0-9_]+)/"', curl([f"{U}/"])))):
+        os.makedirs(os.path.join(SNAPSHOT, m), exist_ok=True)
+        for f in re.findall(r'href="([^"/]+)"', curl([f"{U}/{m}/"])):
+            body = curl([f"{U}/{m}/{f}"], 120)
+            if body and "<!DOCTYPE" not in body[:20]:
+                open(os.path.join(SNAPSHOT, m, f), "w").write(body)
+    print(f"snapshot -> {SNAPSHOT} ({len(log)}B log)", flush=True)
+
+
 def kill(why):
     print(f"TERMINATING ({why})", flush=True)
+    try:
+        snapshot()
+    except Exception as exc:  # noqa: BLE001 - never let a snapshot block a kill
+        print(f"snapshot failed: {exc}", flush=True)
     curl(["-X", "DELETE", "-H", f"Authorization: Bearer {KEY}",
           f"https://rest.runpod.io/v1/pods/{POD}"], 60)
 

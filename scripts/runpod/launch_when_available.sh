@@ -19,7 +19,7 @@ for i in $(seq 1 "$MAX_TRIES"); do
   if POD=$(echo "$OUT" | grep -oE '^launched [a-z0-9]+' | awk '{print $2}') && [ -n "$POD" ]; then
     echo "$OUT"
     echo "$POD" > .pod_id
-    nohup $PY scripts/runpod/watchdog.py "$POD" "$EXPECTED" "$DEADLINE" > "results/watchdog_${NAME}.log" 2>&1 &
+    nohup $PY scripts/runpod/watchdog.py "$POD" "$EXPECTED" "$DEADLINE" "$DEST" > "results/watchdog_${NAME}.log" 2>&1 &
     nohup $PY scripts/runpod/pull.py "$POD" --dest "$DEST" --minutes "$DEADLINE" > "results/pull_${NAME}.log" 2>&1 &
     echo "watchdog and pull armed for $POD (logs: results/watchdog_${NAME}.log, results/pull_${NAME}.log)"
     exit 0
