@@ -31,8 +31,11 @@ export TOKENIZERS_PARALLELISM=false
 export UNDERTONE_ASR_CACHE=${UNDERTONE_ASR_CACHE:-/workspace/asr_cache}
 REPO=${REPO:-/workspace/repo}
 OUT=${OUT:-/workspace/out}
-PACK=${PACK:-/workspace/pack}
 PACK_DATASET=${PACK_DATASET:-deepansadhukhanjeet/undertone-item-pack}
+# One directory per dataset: v1, v2 and the 600 s band all unzip flat with
+# an item_pack.jsonl at the root, and a second pack into one directory
+# would overwrite the first's.
+PACK=${PACK:-/workspace/pack_$(basename "$PACK_DATASET")}
 
 setup() {
   mkdir -p "$OUT" "$HF_HOME" "$UNDERTONE_ASR_CACHE"
@@ -52,9 +55,12 @@ setup() {
   esac
   echo "constraints: $(cat /workspace/constraints.txt)"
   pip install -q kaggle 2>&1 | tail -1
-  if [ ! -f "$PACK/item_pack/item_pack.jsonl" ] && [ -n "${KAGGLE_KEY:-}" ]; then
+  echo "pack: $PACK_DATASET -> $PACK"
+  if [ -z "$(find "$PACK" -maxdepth 3 -name item_pack.jsonl 2>/dev/null)" ] && [ -n "${KAGGLE_KEY:-}" ]; then
     mkdir -p "$PACK"
     kaggle datasets download "$PACK_DATASET" -p "$PACK" --unzip 2>&1 | tail -1
+  else
+    echo "pack already on the volume"
   fi
   # No pack means every model fails after a venv build each. Say so once
   # and finish; the watchdog terminates on RUN_COMPLETE within a minute.

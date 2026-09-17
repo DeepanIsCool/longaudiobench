@@ -192,7 +192,8 @@ class TestPackCheck:
         (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / rel).write_text("{}")
         src = (RUNPOD / "bootstrap.sh").read_text()
-        line = next(l for l in src.splitlines() if "-name item_pack.jsonl" in l and "if [" in l)
+        line = next(l for l in src.splitlines()
+                    if "-name item_pack.jsonl" in l and "if [" in l and "KAGGLE_KEY" not in l)
         cond = line.strip()[3:].rstrip("; then").strip()
         out = subprocess.run(["bash", "-c", f'PACK="{tmp_path}"; if {cond}; then echo MISSING; else echo FOUND; fi'],
                              capture_output=True, text=True)
@@ -206,7 +207,8 @@ class TestPackCheck:
 
     def test_empty_is_missing(self, tmp_path):
         src = (RUNPOD / "bootstrap.sh").read_text()
-        line = next(l for l in src.splitlines() if "-name item_pack.jsonl" in l and "if [" in l)
+        line = next(l for l in src.splitlines()
+                    if "-name item_pack.jsonl" in l and "if [" in l and "KAGGLE_KEY" not in l)
         cond = line.strip()[3:].rstrip("; then").strip()
         out = subprocess.run(["bash", "-c", f'PACK="{tmp_path}"; if {cond}; then echo MISSING; else echo FOUND; fi'],
                              capture_output=True, text=True)
@@ -235,3 +237,23 @@ class TestPinsFile:
         src = (RUNPOD / "bootstrap.sh").read_text()
         assert 'grep "^${KEY}|"' in src
         assert "python scripts/runpod/pins.py" not in src
+
+
+class TestPackRouting:
+    def test_launch_forwards_pack_dataset(self):
+        src = (RUNPOD / "rp.py").read_text()
+        assert '"PACK_DATASET": os.environ.get("PACK_DATASET"' in src
+
+    def test_bootstrap_uses_one_dir_per_dataset(self):
+        src = (RUNPOD / "bootstrap.sh").read_text()
+        assert 'PACK=${PACK:-/workspace/pack_$(basename "$PACK_DATASET")}' in src
+
+    def test_every_step_names_its_pack(self):
+        """A step on the wrong pack scores the wrong items with the right
+        fingerprint check failing every model - after a venv build each."""
+        for f in EXPERIMENTS.glob("0*.sh"):
+            text = f.read_text()
+            if "--fingerprint" in text and "0b14538c9854" in text:
+                assert "undertone-item-pack-v2" in text, f.name
+            if "band_600" in f.name:
+                assert "undertone-item-pack-600" in text, f.name

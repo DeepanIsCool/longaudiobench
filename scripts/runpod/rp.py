@@ -202,6 +202,9 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
         "env": {
             "HF_TOKEN": hf, "HUGGING_FACE_HUB_TOKEN": hf,
             "KAGGLE_USERNAME": kaggle_user, "KAGGLE_KEY": kaggle_key,
+            # Which item pack the step scores. bootstrap.sh downloads it into
+            # its own directory, so packs never unzip over each other.
+            "PACK_DATASET": os.environ.get("PACK_DATASET", "deepansadhukhanjeet/undertone-item-pack"),
             "HF_HOME": "/workspace/hf",
             "UNDERTONE_ASR_CACHE": "/workspace/asr_cache",
             "PYTORCH_ALLOC_CONF": "expandable_segments:True",
