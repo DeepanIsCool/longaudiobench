@@ -34,7 +34,7 @@ GQL = "https://api.runpod.io/graphql"
 # account after the planned spend. It was set to 6.00 when the balance was
 # 10.00 and then blocked a $1 job at a 5.64 balance; the ceiling has to track
 # what is left, not what there was. Override per launch with --reserve.
-DEFAULT_RESERVE_USD = 2.00
+DEFAULT_RESERVE_USD = 3.00
 DEFAULT_GPU = "NVIDIA A40"          # 48 GB; the 300 s forward pass peaks at 19.4 GiB
 DEFAULT_IMAGE = "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04"
 REPO = "https://github.com/DeepanIsCool/longaudiobench.git"
@@ -124,7 +124,7 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
         print("warning: HF_TOKEN unset; gated models (Gemma, Llama) will fail")
     start = (
         "bash -lc '"
-        f"git clone --depth 1 --branch {ref} {REPO} /workspace/repo && "
+        f"rm -rf /workspace/repo && git clone --depth 1 --branch {ref} {REPO} /workspace/repo && "
         "cd /workspace/repo && export UNDERTONE_CODE_SHA=$(git rev-parse HEAD) && "
         f"bash {script}'"
     )
@@ -134,6 +134,12 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
         "gpuTypeIds": [gpu],
         "gpuCount": 1,
         "cloudType": "COMMUNITY",
+        # Never a spot pod: an interruption mid-ladder throws away the cells
+        # since the last pull and the model load before them.
+        "interruptible": False,
+        # Every step starts by pulling 10-20 GB of weights. A slow node bills
+        # for the wait.
+        "minDownloadMbps": 500,
         "volumeInGb": volume_gb,
         "volumeMountPath": "/workspace",
         "containerDiskInGb": disk_gb,
