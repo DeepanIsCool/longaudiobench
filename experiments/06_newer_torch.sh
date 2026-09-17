@@ -14,9 +14,13 @@
 source "$(dirname "$0")/../scripts/runpod/bootstrap.sh"
 setup
 FP=${FP:-56bd324cf6a3}
-MODELS=${MODELS:-"audio_flamingo_next aero_1_audio"}
-for KEY in $MODELS; do
-  run_model "$KEY" --fingerprint "$FP" --ladder --sweep needle:default \
-    --sweep needle:boost --sweep competitor:coarse --sweep needle:calibrated
-done
+# Audio-Flamingo: ladder only. Its ladder runs clean at every condition on
+# this image (280/280 on v1), but the first sweep window trips a CUDA
+# device-side index assert inside the model's audio encoder, after which
+# every CUDA op in the process fails. Model-side, reproducible, and the
+# same assert as the previous session's attempt. Documented in the paper as
+# the one model without a sweep.
+run_model audio_flamingo_next --fingerprint "$FP" --ladder
+run_model aero_1_audio --fingerprint "$FP" --ladder --sweep needle:default \
+  --sweep needle:boost --sweep competitor:coarse --sweep needle:calibrated
 finish

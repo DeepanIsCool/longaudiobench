@@ -303,14 +303,24 @@ def run_sweep(adapter, pack, out_path, levels: tuple[float, ...] = DEFAULT_LEVEL
               f"and are skipped")
 
     written = 0
+    no_competitor = 0
     with out_path.open("a", encoding="utf-8") as fh:
         for n, item in enumerate(items, 1):
             todo = [lv for lv in levels
                     if (item.item_id, lv, edit_target) not in done]
             if not todo:
                 continue
-            audio = load_audio(os.path.join(audio_root, item.audio_path))
             window = contrast_window(item, *competitor_spans(item)[0])
+            if edit_target == "competitor" and not any(
+                    window.start <= s_ and e_ <= window.end
+                    for s_, e_ in competitor_spans(item)):
+                # The competitor was clipped out by MAX_CONTRAST_WINDOW. The
+                # needle arm records these with a NaN contrast; the competitor
+                # arm has nothing to edit and skips them. Raising here took
+                # Audio-Flamingo's whole run down on the first such item.
+                no_competitor += 1
+                continue
+            audio = load_audio(os.path.join(audio_root, item.audio_path))
             clip = audio[int(window.start * SAMPLE_RATE):int(window.end * SAMPLE_RATE)]
             for row in sweep_item(adapter, item, clip, window,
                                   competitor_spans(item), tuple(todo), seed,
@@ -323,7 +333,9 @@ def run_sweep(adapter, pack, out_path, levels: tuple[float, ...] = DEFAULT_LEVEL
             if progress and n % 10 == 0:
                 print(f"  {n}/{len(items)} items, {written} rows")
     if progress:
-        print(f"[{adapter.key}] sweep wrote {written} rows to {out_path}")
+        print(f"[{adapter.key}] sweep wrote {written} rows to {out_path}"
+              + (f"; {no_competitor} items skipped: competitor outside the window"
+                 if no_competitor else ""))
     return out_path
 
 

@@ -419,3 +419,26 @@ class TestResumeAcrossArms:
         finally:
             base.load_audio = base_load
         assert len(out.read_text().splitlines()) == 1
+
+
+class TestCompetitorOutsideWindow:
+    def test_competitor_arm_skips_items_whose_competitor_was_clipped(self, tmp_path):
+        """MAX_CONTRAST_WINDOW can clip the competitor out. The needle arm
+        records NaN contrast; the competitor arm must skip, not raise - a raise
+        took Audio-Flamingo's whole run down on the first such item."""
+        import json
+        from undertone.items import ItemPack
+        far = MCQItem.from_dict({**item(needle=(10.0, 12.0)).to_dict(),
+                                 "provenance": {"salience_at": 250.0}})  # > 90 s away
+        pack = ItemPack([far])
+        out = tmp_path / "sweep.jsonl"
+        import undertone.adapters.base as base
+        sr = 16000
+        keep = base.load_audio
+        base.load_audio = lambda p: np.random.default_rng(0).normal(0, 0.25, 300 * sr).astype(np.float32)
+        try:
+            sweep.run_sweep(StubModel(), pack, out, levels=(0.0, -6.0),
+                            edit_target="competitor", progress=False)
+        finally:
+            base.load_audio = keep
+        assert not out.exists() or out.read_text().strip() == ""
