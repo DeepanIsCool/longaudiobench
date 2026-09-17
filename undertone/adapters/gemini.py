@@ -156,6 +156,9 @@ class GeminiAudio(ModelAdapter):
                 retryable = any(s in msg for s in ("429", "RESOURCE_EXHAUSTED", "503",
                                                    "UNAVAILABLE", "500", "DEADLINE",
                                                    "'message': 'Bad Request'"))
+                # A 429 for an empty prepaid balance never clears on its own.
+                if "credits are depleted" in msg:
+                    retryable = False
                 if not retryable or attempt == tries - 1:
                     raise
                 wait = _reset_seconds(msg)

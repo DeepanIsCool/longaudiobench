@@ -5,8 +5,9 @@
 #   scripts/push_gemini_partial.sh <kaggle-user>
 #
 # results/gemini/<key>/<fingerprint>/results.jsonl is the local source of
-# truth; a kernel's rows are appended to it (the runner de-duplicates on
-# resume, error rows are re-run), uploads.json is replaced.
+# truth. A kernel seeds from the previous bank, so its output is a superset
+# and replaces the local file; a shorter output (a kernel that never got to
+# seeding) is left alone.
 set -e
 USER=${1:?kaggle user}
 SLUG=undertone-gemini-partial
@@ -18,8 +19,11 @@ for k in 30-gemini-3-1-flash-lite 31-gemini-3-1-pro 32-gemini-3-5-flash; do
     [ -f "$f" ] || continue
     rel=${f#"$TMP/$k/results/"}
     mkdir -p "$DEST/$(dirname "$rel")"
-    cat "$f" >> "$DEST/$rel"
-    echo "banked $rel: $(wc -l < "$f") rows (local now $(wc -l < "$DEST/$rel"))"
+    if [ -f "$DEST/$rel" ] && [ "$(wc -l < "$f")" -lt "$(wc -l < "$DEST/$rel")" ]; then
+      echo "kept local $rel ($(wc -l < "$DEST/$rel") rows > kernel's $(wc -l < "$f"))"; continue
+    fi
+    cp "$f" "$DEST/$rel"
+    echo "banked $rel: $(wc -l < "$f") rows"
   done
   for u in "$TMP/$k"/results/*/uploads.json; do
     [ -f "$u" ] && cp "$u" "$DEST/${u#"$TMP/$k/results/"}"
