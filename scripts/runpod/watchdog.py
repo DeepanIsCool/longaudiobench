@@ -111,19 +111,27 @@ def state():
             if body and "<!DOCTYPE" not in body[:20]:
                 cells += body.count('{"item_id"')
     log = curl([f"{U}/run.log"])
-    return (cells, len(log), len(set(re.findall(r"(\w+)_OK$", log, re.M))),
-            "RUN_COMPLETE" in log, log.count("=== RUN START "))
+    # Only the current run's section: everything after the last banner.
+    tail = log.rsplit("=== RUN START ", 1)[-1]
+    return (cells, len(log), len(set(re.findall(r"(\w+)_OK$", tail, re.M))),
+            "RUN_COMPLETE" in tail, log.count("=== RUN START "))
 
 
 last_sig, last_change = None, time.time()
+BASELINE = 0
 for minute in range(1, DEADLINE_MIN + 1):
     time.sleep(60)
     if not alive():
         print(f"pod gone at minute {minute}", flush=True)
         sys.exit(0)
     cells, logsize, ok, complete, starts = state()
-    if starts >= 2:
-        kill(f"restart loop: {starts} start banners in run.log")
+    # run.log lives on the volume and survives a stop/resume, so every
+    # resume adds a banner. A restart loop adds banners *while this watchdog
+    # is running*; count only those, against the number seen at start.
+    if minute == 1:
+        BASELINE = starts
+    if starts - BASELINE >= 1 and not complete:
+        kill(f"restart loop: {starts - BASELINE} new start banner(s) since this watchdog began")
         sys.exit(1)
     sig = (cells, logsize)
     if sig != last_sig:
