@@ -35,7 +35,10 @@ GQL = "https://api.runpod.io/graphql"
 # 10.00 and then blocked a $1 job at a 5.64 balance; the ceiling has to track
 # what is left, not what there was. Override per launch with --reserve.
 DEFAULT_RESERVE_USD = 3.00
-DEFAULT_GPU = "NVIDIA A40"          # 48 GB; the 300 s forward pass peaks at 19.4 GiB
+# 48 GB, sm86, $0.33-0.35/h on community cloud. Either is fine: same
+# architecture generation, same dtype path, same headroom. The API takes a
+# list and gives whichever has stock.
+DEFAULT_GPU = "NVIDIA A40,NVIDIA RTX A6000"
 DEFAULT_IMAGE = "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04"
 REPO = "https://github.com/DeepanIsCool/longaudiobench.git"
 
@@ -104,7 +107,8 @@ def guard(reserve=DEFAULT_RESERVE_USD, planned=0.0):
 
 
 def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
-           disk_gb=40, reserve=DEFAULT_RESERVE_USD, planned=0.0, ref="main"):
+           disk_gb=40, reserve=DEFAULT_RESERVE_USD, planned=0.0, ref="main",
+           cloud="COMMUNITY"):
     """Create one pod that clones the repo at `ref` and runs `script`.
 
     Secrets reach the pod as environment variables set on the pod itself,
@@ -131,9 +135,9 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
     body = {
         "name": name,
         "imageName": image,
-        "gpuTypeIds": [gpu],
+        "gpuTypeIds": [g.strip() for g in gpu.split(",") if g.strip()],
         "gpuCount": 1,
-        "cloudType": "COMMUNITY",
+        "cloudType": cloud,
         # Never a spot pod: an interruption mid-ladder throws away the cells
         # since the last pull and the model load before them.
         "interruptible": False,
@@ -159,7 +163,7 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
     pod_id = d.get("id")
     if not pod_id:
         sys.exit(f"launch failed: {json.dumps(d)[:600]}")
-    print(f"launched {pod_id}  {name}  {gpu}")
+    print(f"launched {pod_id}  {name}  {d.get('machine', {}).get('gpuDisplayName') or gpu}  {cloud}")
     print(f"  proxy: https://{pod_id}-8000.proxy.runpod.net/")
     print(f"  now run:  python scripts/runpod/watchdog.py {pod_id} <expected_ok> <deadline_min>")
     print(f"       and:  python scripts/runpod/pull.py {pod_id} --dest results/{name}")
@@ -178,7 +182,8 @@ def main():
     l = sub.add_parser("launch")
     l.add_argument("--name", required=True)
     l.add_argument("--script", required=True, help="repo-relative bash script the pod runs")
-    l.add_argument("--gpu", default=DEFAULT_GPU)
+    l.add_argument("--gpu", default=DEFAULT_GPU, help="comma-separated; any with stock is taken")
+    l.add_argument("--cloud", default="COMMUNITY", choices=["COMMUNITY", "SECURE"])
     l.add_argument("--image", default=DEFAULT_IMAGE)
     l.add_argument("--ref", default="main", help="git ref to clone; use a tag for paper runs")
     l.add_argument("--reserve", type=float, default=DEFAULT_RESERVE_USD)
@@ -198,7 +203,7 @@ def main():
         guard(a.reserve, a.planned)
     elif a.cmd == "launch":
         launch(a.name, a.script, a.gpu, a.image, reserve=a.reserve,
-               planned=a.planned, ref=a.ref)
+               planned=a.planned, ref=a.ref, cloud=a.cloud)
 
 
 if __name__ == "__main__":
