@@ -205,6 +205,11 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
             # Which item pack the step scores. bootstrap.sh downloads it into
             # its own directory, so packs never unzip over each other.
             "PACK_DATASET": os.environ.get("PACK_DATASET", "deepansadhukhanjeet/undertone-item-pack"),
+            # Optional model-list override for a step script (see 03/04).
+            "MODELS": os.environ.get("MODELS", ""),
+            # Optional: a Kaggle dataset of a previous pod's output tree,
+            # restored into $OUT before the step runs. See bootstrap.sh.
+            "RESTORE_DATASET": os.environ.get("RESTORE_DATASET", ""),
             "HF_HOME": "/workspace/hf",
             "UNDERTONE_ASR_CACHE": "/workspace/asr_cache",
             "PYTORCH_ALLOC_CONF": "expandable_segments:True",

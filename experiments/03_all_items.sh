@@ -20,10 +20,14 @@ source "$(dirname "$0")/../scripts/runpod/bootstrap.sh"
 setup
 FP=0b14538c9854
 QO="gemma3n_e2b moss_audio_4b_instruct phi4_multimodal qwen2_5_omni_7b"
-for KEY in moss_audio_8b_thinking qwen2_5_omni_7b gemma3n_e4b gemma3n_e2b \
-           qwen2_audio_7b moss_audio_4b_thinking qwen2_5_omni_3b \
-           phi4_multimodal moss_audio_8b_instruct moss_audio_4b_instruct \
-           voxtral_mini_3b aero_1_audio; do
+# MODELS overrides the list, so a launch onto a fresh pod - no DONE markers
+# on its volume - can skip what the laptop already holds from a previous
+# pod. The default is every model, slowest first.
+MODELS=${MODELS:-"moss_audio_8b_thinking qwen2_5_omni_7b gemma3n_e4b gemma3n_e2b \
+  qwen2_audio_7b moss_audio_4b_thinking qwen2_5_omni_3b \
+  phi4_multimodal moss_audio_8b_instruct moss_audio_4b_instruct \
+  voxtral_mini_3b aero_1_audio"}
+for KEY in $MODELS; do
   EXTRA=""
   [ "$KEY" != "aero_1_audio" ] && EXTRA="--sweep needle:default"
   case " $QO " in *" $KEY "*) EXTRA="$EXTRA --qo";; esac

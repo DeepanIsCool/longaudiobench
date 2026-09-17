@@ -55,6 +55,15 @@ setup() {
   esac
   echo "constraints: $(cat /workspace/constraints.txt)"
   pip install -q kaggle 2>&1 | tail -1
+  # Optional: restore a previous pod's output tree before running, so a
+  # fresh pod - new host, empty volume - continues from the cells the laptop
+  # already pulled. run_model.py resumes from whatever is in $OUT/<model>/,
+  # and a DONE marker skips a model outright.
+  if [ -n "${RESTORE_DATASET:-}" ] && [ -n "${KAGGLE_KEY:-}" ]; then
+    echo "restore: $RESTORE_DATASET -> $OUT"
+    kaggle datasets download "$RESTORE_DATASET" -p "$OUT" --unzip 2>&1 | tail -1
+    echo "restored: $(find "$OUT" -name '*.jsonl' | wc -l) jsonl, $(find "$OUT" -name DONE | wc -l) DONE"
+  fi
   echo "pack: $PACK_DATASET -> $PACK"
   if [ -z "$(find "$PACK" -maxdepth 3 -name item_pack.jsonl 2>/dev/null)" ] && [ -n "${KAGGLE_KEY:-}" ]; then
     mkdir -p "$PACK"
