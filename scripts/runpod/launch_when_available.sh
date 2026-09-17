@@ -15,7 +15,7 @@ PY=.venv/bin/python
 for i in $(seq 1 "$MAX_TRIES"); do
   CLOUD=$([ $((i % 2)) -eq 1 ] && echo COMMUNITY || echo SECURE)
   OUT=$($PY scripts/runpod/rp.py launch --name "$NAME" --script "$SCRIPT" \
-        --planned "$PLANNED" --ref "${REF:-paper-run-7}" --cloud "$CLOUD" 2>&1)
+        --planned "$PLANNED" --ref "${REF:-paper-run-8}" --cloud "$CLOUD" 2>&1)
   if POD=$(echo "$OUT" | grep -oE '^launched [a-z0-9]+' | awk '{print $2}') && [ -n "$POD" ]; then
     echo "$OUT"
     echo "$POD" > .pod_id
