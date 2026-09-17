@@ -44,7 +44,7 @@ class TestHelp:
         names run_model.py knows, or the pod fails after the venv is built."""
         from undertone import sweep
 
-        levels = {"default", "calibrated", "boost"}
+        levels = {"default", "calibrated", "boost", "coarse"}
         specs = re.findall(r"--sweep\s+([a-z]+:?[a-z]*)", "\n".join(
             p.read_text() for p in EXPERIMENTS.glob("*.sh")))
         assert specs, "no --sweep in any driver"

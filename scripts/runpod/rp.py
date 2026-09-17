@@ -210,6 +210,8 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
             # Optional: a Kaggle dataset of a previous pod's output tree,
             # restored into $OUT before the step runs. See bootstrap.sh.
             "RESTORE_DATASET": os.environ.get("RESTORE_DATASET", ""),
+            # Optional fingerprint the step asserts against its pack.
+            "FP": os.environ.get("FP", ""),
             "HF_HOME": "/workspace/hf",
             "UNDERTONE_ASR_CACHE": "/workspace/asr_cache",
             "PYTORCH_ALLOC_CONF": "expandable_segments:True",

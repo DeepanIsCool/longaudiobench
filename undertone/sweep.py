@@ -65,6 +65,13 @@ CALIBRATED_LEVELS = (0.0, -2.0, -4.0, -6.0, -8.0, -10.0, -12.0)
 # scoped to the edited span, so +9 cannot rescale the rest of the recording.
 BOOST_LEVELS = (0.0, 3.0, 6.0, 9.0)
 
+# The competitor arm at the levels that carry its claim: is accuracy
+# recovered when the loud competitor is quietened? 0 is shared with the
+# needle arm's control; the intermediate steps are coarse because the
+# question is direction and the removal contrast, not a threshold. At
+# ~1 s per cell across 493 items and 11 models, every level is $0.70.
+COMPETITOR_LEVELS = (0.0, -6.0, -12.0, -24.0, NEEDLE_REMOVED_DB)
+
 # What the gain edit is applied to. "needle" is the original experiment.
 # "competitor" attenuates the loud mention instead and leaves the needle
 # alone: if accuracy rises when the loud thing gets quieter, the prior is

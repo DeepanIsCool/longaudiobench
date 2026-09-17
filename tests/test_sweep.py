@@ -352,6 +352,13 @@ class TestEditTarget:
             sweep.sweep_item(StubModel(), item(needle=(10.0, 12.0)), self._audio(),
                              Window(0.0, 40.0, False), [], edit_target="competitor")
 
+    def test_competitor_levels_include_control_and_removal(self):
+        """The coarse competitor arm must share the 0 dB control with the
+        needle arm and end at removal, or its direction test has no anchors."""
+        assert sweep.COMPETITOR_LEVELS[0] == 0.0
+        assert sweep.COMPETITOR_LEVELS[-1] == sweep.NEEDLE_REMOVED_DB
+        assert set(sweep.COMPETITOR_LEVELS) - {0.0, sweep.NEEDLE_REMOVED_DB} <= set(sweep.DEFAULT_LEVELS)
+
     def test_calibrated_levels_stay_in_the_exact_dose_region(self):
         """Table 3b: shortfall <= 0.5 dB down to -12, 34 dB at -60. The fine
         sweep must not wander past where the dose is honest."""

@@ -12,23 +12,27 @@ new 2×2 last, with whatever is left. Costed at the secure-cloud A40 price this
 pod actually runs at, $0.49/h. One pod (`--name undertone`) carries every step
 by stop/resume.
 
+Every task on every AMI item for every model that can run it — 408 items at
+300 s, 85 at 600 s — costed at this pod's $0.51/h. One pod (`--name undertone`)
+carries every step; a lost pod restores from `undertone-restore` and resumes.
+
 | # | script | what it does | cost | running |
 | --- | --- | --- | --- | --- |
-| 1 | `01_text_twins.sh` | Four text twins on the original 70 items. **Also the end-to-end test of the chain.** | $0.60 | $0.60 |
-| 2 | `03_all_items.sh` | **Ladder + sweep + question-only on the 338 new items, one model load each.** 12 models (sweep 11, QO the same 4 as before). This is what makes every table 408 items for every model. | $14.50 | $15.10 |
-| 3 | `03b_twins_all_items.sh` | Four text twins on the 338 new items. | $1.10 | $16.20 |
-| 4 | `04_band_600.sh` | 600 s band: ladder for the 9 models that can hear it, then the four twins, on the 85-item band pack. | $3.60 | $19.80 |
-| 5 | `02_prominence_2x2.sh` | Boost / competitor / calibrated sweeps on the original 70 items, 11 models. A self-contained experiment; runs last so it's the one that waits if anything slips. | $2.45 | $22.25 |
+| 1 | `01_text_twins.sh` | Four text twins on the 70. Done. | $0.37 | $0.37 |
+| 2 | `03_all_items.sh` | Ladder + main sweep + question-only on the 338 new items, one load per model. 12 models. **Running.** | ~$10.30 | $10.70 |
+| 3 | `03b_twins_all_items.sh` | Four text twins on the 338. | $1.20 | $11.90 |
+| 4 | `04_band_600.sh` | 600 s band: ladder + main sweep, 9 models; then the four twins. 85 items. | $5.40 | $17.30 |
+| 5 | `02_prominence_2x2.sh` ×3 packs | Boost (+3/+6/+9) and coarse competitor (−6/−12/−24/removed) on **all 493 items**, 11 models. Runs last; resumable, so a shortfall banks what it finishes. | $4.90 | $22.20 |
 
-After step 4 the paper's existing protocol is uniform: 408 items × 12 models
-at 300 s, 85 × 9 at 600 s, the same four twins and the same four QO models
-throughout. Step 5 adds the new causal arms.
+That is the whole protocol, old and new, on the same items for every model.
+The fine 0…−12 sweep is the one thing not run: a precision refinement, and
+at this budget every extra level across 493 items is $0.70.
 
 ## Not in this budget, and why
 
-- **The 2×2 on all 408 items** (~$11). It is a self-contained experiment and
-  70 items gave 11/11 on every sign test it will be judged by; more items
-  sharpen the threshold estimate, not the finding.
+- **The fine 0…−12 dB sweep** (~$3). The stimulus audit shows this is the
+  only exactly-dosed region, so a psychometric threshold would come from
+  here; it is a refinement of a result the coarse arms already establish.
 - **Aero's sweep, Audio-Flamingo's L3/L4** ($1). Aero has no recorded
   competitor spans, so it cannot be swept; AF-Next needs 17 GiB on one device
   and its own transformers pin.

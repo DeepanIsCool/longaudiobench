@@ -119,7 +119,7 @@ try:
         summarise(rows, "condition")
 
     LEVELS = {"default": sweep.DEFAULT_LEVELS, "calibrated": sweep.CALIBRATED_LEVELS,
-              "boost": sweep.BOOST_LEVELS}
+              "boost": sweep.BOOST_LEVELS, "coarse": sweep.COMPETITOR_LEVELS}
     for spec in a.sweep:
         arm, _, lv = spec.partition(":")
         levels = LEVELS[lv or "default"]
