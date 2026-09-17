@@ -31,7 +31,7 @@ export UNDERTONE_ASR_CACHE=${UNDERTONE_ASR_CACHE:-/workspace/asr_cache}
 REPO=${REPO:-/workspace/repo}
 OUT=${OUT:-/workspace/out}
 PACK=${PACK:-/workspace/pack}
-PACK_DATASET=${PACK_DATASET:-sadhukhandeepan/undertone-item-pack}
+PACK_DATASET=${PACK_DATASET:-deepansadhukhanjeet/undertone-item-pack}
 
 setup() {
   mkdir -p "$OUT" "$HF_HOME" "$UNDERTONE_ASR_CACHE"

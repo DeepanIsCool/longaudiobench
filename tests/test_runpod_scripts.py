@@ -165,3 +165,18 @@ class TestWatchdogLogic:
         src = (RUNPOD / "bootstrap.sh").read_text()
         code = "\n".join(l for l in src.splitlines() if not l.lstrip().startswith("#"))
         assert "set -e" not in code and "set -u" not in code
+
+
+class TestDatasetSlugs:
+    def test_every_pack_dataset_is_under_the_account_the_cli_uses(self):
+        """The first two launches 403'd on a slug copied from an old script
+        under a different Kaggle username. Six cents. Every slug in the tree
+        must match the username in kaggle.json."""
+        import json
+        kj = ROOT / "kaggle.json"
+        if not kj.exists():
+            pytest.skip("no kaggle.json at repo root")
+        user = json.loads(kj.read_text())["username"]
+        for f in list(RUNPOD.glob("*.sh")) + list(EXPERIMENTS.glob("*.sh")):
+            for m in re.finditer(r"([a-z0-9]+)/undertone-item-pack", f.read_text()):
+                assert m.group(1) in (user, "<user>"), f"{f.name}: {m.group(0)} is not under {user}"
