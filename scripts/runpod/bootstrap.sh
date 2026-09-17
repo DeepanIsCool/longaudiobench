@@ -34,10 +34,10 @@ PACK=${PACK:-/workspace/pack}
 PACK_DATASET=${PACK_DATASET:-sadhukhandeepan/undertone-item-pack}
 
 setup() {
-  mkdir -p "$OUT" "$HF_HOME" "$UNDERTONE_ASR_CACHE" ~/.kaggle
-  if [ -n "${KAGGLE_JSON:-}" ]; then
-    printf '%s' "$KAGGLE_JSON" > ~/.kaggle/kaggle.json && chmod 600 ~/.kaggle/kaggle.json
-  fi
+  mkdir -p "$OUT" "$HF_HOME" "$UNDERTONE_ASR_CACHE"
+  # Kaggle auth is KAGGLE_USERNAME + KAGGLE_KEY in the environment, set by
+  # rp.py launch. No kaggle.json is written: a JSON blob passed through the
+  # pod env came out unusable and the CLI silently went anonymous.
   ( cd "$OUT" && python -m http.server 8000 >/dev/null 2>&1 & )
   exec > >(tee -a "$OUT/run.log") 2>&1
   # The watchdog counts this exact banner. Two of them means Runpod restarted
@@ -47,9 +47,15 @@ setup() {
   TORCH_V=$(python -c "import torch;print(torch.__version__.split('+')[0])")
   printf 'torch==%s\n' "$TORCH_V" > /workspace/constraints.txt
   pip install -q kaggle 2>&1 | tail -1
-  if [ ! -f "$PACK/item_pack/item_pack.jsonl" ] && [ -n "${KAGGLE_JSON:-}" ]; then
+  if [ ! -f "$PACK/item_pack/item_pack.jsonl" ] && [ -n "${KAGGLE_KEY:-}" ]; then
     mkdir -p "$PACK"
     kaggle datasets download "$PACK_DATASET" -p "$PACK" --unzip 2>&1 | tail -1
+  fi
+  # No pack means every model fails after a venv build each. Say so once
+  # and finish; the watchdog terminates on RUN_COMPLETE within a minute.
+  if ! ls "$PACK"/*/item_pack.jsonl "$PACK"/item_pack.jsonl >/dev/null 2>&1; then
+    echo "PACK MISSING under $PACK after download of $PACK_DATASET - aborting before any model"
+    finish
   fi
 }
 

@@ -9,7 +9,10 @@ Credentials come from the environment, never from this file:
 
     RUNPOD_API_KEY   required
     HF_TOKEN         forwarded into the pod's environment at launch
-    KAGGLE_JSON      contents of kaggle.json, forwarded likewise
+    KAGGLE_JSON      contents of kaggle.json; split into KAGGLE_USERNAME and
+                     KAGGLE_KEY before forwarding, because a JSON blob did not
+                     survive Runpod env -> shell intact and the pod's kaggle CLI
+                     went anonymous (403 on a private dataset, $0.03 of pod)
 
 README.md in this directory has the three export lines that load them from
 the gitignored files at the repo root. Nothing here is ever written with a
@@ -131,6 +134,11 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
     kg = os.environ.get("KAGGLE_JSON", "")
     if not hf:
         print("warning: HF_TOKEN unset; gated models (Gemma, Llama) will fail")
+    try:
+        kj = json.loads(kg) if kg else {}
+        kaggle_user, kaggle_key = kj["username"], kj["key"]
+    except (json.JSONDecodeError, KeyError):
+        sys.exit("KAGGLE_JSON must be the contents of kaggle.json (username + key)")
     start = (
         "bash -lc '"
         f"rm -rf /workspace/repo && git clone --depth 1 --branch {ref} {REPO} /workspace/repo && "
@@ -155,7 +163,7 @@ def launch(name, script, gpu=DEFAULT_GPU, image=DEFAULT_IMAGE, volume_gb=80,
         "ports": ["8000/http"],
         "env": {
             "HF_TOKEN": hf, "HUGGING_FACE_HUB_TOKEN": hf,
-            "KAGGLE_JSON": kg,
+            "KAGGLE_USERNAME": kaggle_user, "KAGGLE_KEY": kaggle_key,
             "HF_HOME": "/workspace/hf",
             "UNDERTONE_ASR_CACHE": "/workspace/asr_cache",
             "PYTORCH_ALLOC_CONF": "expandable_segments:True",

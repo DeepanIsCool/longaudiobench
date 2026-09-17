@@ -25,7 +25,7 @@ for i in $(seq 1 "$MAX_TRIES"); do
     exit 0
   fi
   if echo "$OUT" | grep -q "no instances currently available"; then
-    echo "try $i/$MAX_TRIES ($CLOUD): no stock"; sleep 300; continue
+    [ $((i % 6)) -eq 0 ] && echo "try $i/$MAX_TRIES: still no A40/A6000 stock on either cloud"; sleep 300; continue
   fi
   echo "$OUT"; echo "launch refused for a reason other than stock - stopping"; exit 1
 done

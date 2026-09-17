@@ -92,6 +92,9 @@ class TestNoSecrets:
         src = (RUNPOD / "rp.py").read_text()
         assert 'os.environ.get("HF_TOKEN"' in src
         assert 'os.environ.get("KAGGLE_JSON"' in src
+        assert '"KAGGLE_USERNAME": kaggle_user, "KAGGLE_KEY": kaggle_key' in src
+        assert "KAGGLE_JSON" not in src.split('"env": {')[1].split("}")[0], \
+            "the JSON blob must not reach the pod env; it did not survive the trip"
         assert ".hf_token" not in src.replace("cat .hf_token", "")  # docs only
 
 
