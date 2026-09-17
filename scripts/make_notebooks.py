@@ -30,7 +30,7 @@ REPO_URL = "https://github.com/DeepanIsCool/longaudiobench.git"
 # kernel, and no two models are guaranteed to have been scored by the same code.
 # git clone --depth 1 --branch takes a tag or a branch but not a bare sha, so the
 # pin is a tag. Move it deliberately, never as a side effect of committing.
-REPO_REF = "paper-run-21"
+REPO_REF = "paper-run-22"
 ITEM_PACK_DATASET = "undertone-item-pack"
 
 # HARD pin, not a floor. ">=4.57.1" resolved to transformers 5.0.0 on Kaggle and
@@ -1291,7 +1291,7 @@ from a cell injected at push time; it is never in the repository.
 """
 
 CELL_API_ENV = """\
-import os, glob, json, random, sys
+import os, glob, json, random, shutil, sys
 import numpy as np
 SEED = 20260904
 random.seed(SEED); np.random.seed(SEED)
@@ -1315,6 +1315,18 @@ KEY = "{key}"
 OUT_ROOT = f"/kaggle/working/results/{{KEY}}"
 os.makedirs(OUT_ROOT, exist_ok=True)
 os.environ["GEMINI_UPLOAD_CACHE"] = f"{{OUT_ROOT}}/uploads.json"
+
+# Resume. /kaggle/working is fresh every version, so rows an earlier version
+# scored are republished as the undertone-gemini-partial dataset and seeded
+# here; the runner skips them (error rows are re-run) and appends the rest.
+PARTIAL = f"/kaggle/input/undertone-gemini-partial/{{KEY}}"
+for prev in sorted(glob.glob(f"{{PARTIAL}}/*/results.jsonl")):
+    fp = os.path.basename(os.path.dirname(prev))
+    os.makedirs(f"{{OUT_ROOT}}/{{fp}}", exist_ok=True)
+    shutil.copy(prev, f"{{OUT_ROOT}}/{{fp}}/results.jsonl")
+    print("resumed", fp, sum(1 for _ in open(prev)), "rows")
+if os.path.exists(f"{{PARTIAL}}/uploads.json"):
+    shutil.copy(f"{{PARTIAL}}/uploads.json", os.environ["GEMINI_UPLOAD_CACHE"])
 
 packs = sorted(glob.glob("/kaggle/input/**/item_pack.jsonl", recursive=True))
 assert packs, "attach the item-pack datasets (v1, v2, 600)"

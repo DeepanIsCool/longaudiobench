@@ -29,6 +29,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 ITEM_PACK_SLUG = "undertone-item-pack"
 # The API notebooks run every pack; the model notebooks attach v1 only.
 ALL_PACK_SLUGS = ("undertone-item-pack", "undertone-item-pack-v2", "undertone-item-pack-600")
+# Rows from earlier API kernel versions, so a re-push resumes instead of
+# re-spending quota. Published by scripts/push_gemini_partial.sh.
+PARTIAL_SLUG = "undertone-gemini-partial"
 
 # Kaggle's free GPU pool is a single P100 or a dual T4. Every ceiling, VRAM
 # figure and dtype choice in the roster assumes 2xT4 / 32 GB / sm75, so the
@@ -74,7 +77,7 @@ def metadata(user: str, notebook: Path, attach_pack: bool) -> dict:
         "enable_gpu": stem not in CPU_ONLY and not _is_api(stem),
         **({} if stem in CPU_ONLY or _is_api(stem) else {"machine_shape": MACHINE_SHAPE}),
         "enable_internet": True,
-        "dataset_sources": ([f"{user}/{p}" for p in ALL_PACK_SLUGS] if _is_api(stem)
+        "dataset_sources": ([f"{user}/{p}" for p in ALL_PACK_SLUGS + (PARTIAL_SLUG,)] if _is_api(stem)
                             else [f"{user}/{ITEM_PACK_SLUG}"] if attach_pack else []),
         "competition_sources": [],
         "kernel_sources": [],

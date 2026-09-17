@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import time
 from typing import Any
 
@@ -38,6 +39,15 @@ from ..env import Hardware
 from .base import SAMPLE_RATE, ModelAdapter, as_temp_wav, register
 
 LETTERS = "ABCD"
+
+
+def _reset_seconds(msg: str) -> float | None:
+    """'Please retry in 7h15m9.867s' -> seconds (+30 s slack), else None."""
+    m = re.search(r"retry in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", msg)
+    if not m or not any(m.groups()):
+        return None
+    h, mi, sec = (float(x or 0) for x in m.groups())
+    return h * 3600 + mi * 60 + sec + 30
 
 
 class GeminiAudio(ModelAdapter):
@@ -127,7 +137,16 @@ class GeminiAudio(ModelAdapter):
 
     # -- calls ------------------------------------------------------------------
 
-    def _retry(self, fn, tries: int = 6):
+    def _retry(self, fn, tries: int = 8):
+        """Transient failures sleep and retry; anything else raises.
+
+        Seen live, all three kernels at once: a plain-text ``400 Bad Request``
+        from the frontend (the SDK reports ``{'message': 'Bad Request'}``, no
+        JSON error object) - a frontend hiccup, not a bad cell, and gone a
+        minute later. And a per-day quota 429 that names its reset
+        (``Please retry in 7h15m9s``): honour it rather than burn five cells
+        and abort the run.
+        """
         delay = 15.0
         for attempt in range(tries):
             try:
@@ -135,11 +154,15 @@ class GeminiAudio(ModelAdapter):
             except Exception as exc:  # noqa: BLE001 - classify by message, the SDK's types vary
                 msg = str(exc)
                 retryable = any(s in msg for s in ("429", "RESOURCE_EXHAUSTED", "503",
-                                                   "UNAVAILABLE", "500", "DEADLINE"))
+                                                   "UNAVAILABLE", "500", "DEADLINE",
+                                                   "'message': 'Bad Request'"))
                 if not retryable or attempt == tries - 1:
                     raise
-                time.sleep(delay)
-                delay = min(delay * 2, 240.0)
+                wait = _reset_seconds(msg)
+                if wait is None:
+                    wait, delay = delay, min(delay * 2, 240.0)
+                print(f"[{self.key}] {msg[:90]!r} - retry in {wait:.0f}s", flush=True)
+                time.sleep(wait)
 
     def _call(self, audio: np.ndarray, prompt: str, sr: int) -> str:
         from google.genai import types
