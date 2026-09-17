@@ -14,21 +14,21 @@ export RUNPOD_API_KEY=$(cat .rp_key) HF_TOKEN=$(cat .hf_token) KAGGLE_JSON=$(cat
 PY=.venv/bin/python
 for i in $(seq 1 "$MAX_TRIES"); do
   CLOUD=$([ $((i % 2)) -eq 1 ] && echo COMMUNITY || echo SECURE)
-  OUT=$($PY scripts/runpod/rp.py launch --name "$NAME" --script "$SCRIPT" \
+  RES=$($PY scripts/runpod/rp.py launch --name "$NAME" --script "$SCRIPT" \
         --planned "$PLANNED" --ref "${REF:-paper-run-20}" --cloud "$CLOUD" \
         ${IMAGE:+--image "$IMAGE"} 2>&1)
-  if POD=$(echo "$OUT" | grep -oE '^launched [a-z0-9]+' | awk '{print $2}') && [ -n "$POD" ]; then
+  if POD=$(echo "$RES" | grep -oE '^launched [a-z0-9]+' | awk '{print $2}') && [ -n "$POD" ]; then
     pkill -f "watchdog.py $POD" 2>/dev/null; pkill -f "pull.py $POD" 2>/dev/null
-    echo "$OUT"
+    echo "$RES"
     echo "$POD" > "${POD_ID_FILE:-.pod_id}"
     nohup $PY scripts/runpod/watchdog.py "$POD" "$EXPECTED" "$DEADLINE" "$DEST" > "results/watchdog_${NAME}.log" 2>&1 &
     nohup $PY scripts/runpod/pull.py "$POD" --dest "$DEST" --minutes "$DEADLINE" > "results/pull_${NAME}.log" 2>&1 &
     echo "watchdog and pull armed for $POD (logs: results/watchdog_${NAME}.log, results/pull_${NAME}.log)"
     exit 0
   fi
-  if echo "$OUT" | grep -q "no instances currently available"; then
+  if echo "$RES" | grep -q "no instances currently available"; then
     [ $((i % 6)) -eq 0 ] && echo "try $i/$MAX_TRIES: still no A40/A6000 stock on either cloud"; sleep 300; continue
   fi
-  echo "$OUT"; echo "launch refused for a reason other than stock - stopping"; exit 1
+  echo "$RES"; echo "launch refused for a reason other than stock - stopping"; exit 1
 done
 echo "no stock after $MAX_TRIES tries"; exit 1
