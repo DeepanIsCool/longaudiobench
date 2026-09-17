@@ -9,10 +9,12 @@ from .base import (  # noqa: F401
     get_adapter,
     list_adapters,
     list_controls,
+    list_api_models,
     register,
 )
 from . import (  # noqa: F401,E402
     aero,
+    gemini,
     audio_flamingo,
     cascaded,
     gemma3n,

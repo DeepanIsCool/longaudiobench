@@ -32,11 +32,11 @@ def code_cells(nb: dict) -> list[str]:
     return ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
 
 
-def test_one_notebook_per_model_plus_eight_shared(notebooks):
+def test_one_notebook_per_model_plus_shared_plus_api(notebooks):
     """13 models, plus smoke test, item-pack build, cascaded control, analysis."""
     from undertone import adapters
 
-    assert len(notebooks) == len(adapters.list_adapters()) + 8 == 21
+    assert len(notebooks) == len(adapters.list_adapters()) + 8 + len(adapters.list_api_models()) == 24
     for shared in ("00_smoke_test.ipynb", "01_build_item_pack.ipynb",
                    "02_cascaded_control.ipynb", "90_analysis.ipynb"):
         assert shared in notebooks
@@ -148,6 +148,8 @@ def test_voxtral_installs_mistral_common(notebooks):
 def test_weights_are_cached_outside_the_output_quota(notebooks):
     """A 16-18 GB checkpoint in /kaggle/working fails the 20 GB commit."""
     for name, nb in notebooks.items():
+        if name.startswith("3"):   # API notebooks load no weights
+            continue
         joined = "\n".join(code_cells(nb))
         assert '"HF_HOME", "/kaggle/temp/hf"' in joined, name
 

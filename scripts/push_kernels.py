@@ -27,6 +27,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 ITEM_PACK_SLUG = "undertone-item-pack"
+# The API notebooks run every pack; the model notebooks attach v1 only.
+ALL_PACK_SLUGS = ("undertone-item-pack", "undertone-item-pack-v2", "undertone-item-pack-600")
 
 # Kaggle's free GPU pool is a single P100 or a dual T4. Every ceiling, VRAM
 # figure and dtype choice in the roster assumes 2xT4 / 32 GB / sm75, so the
@@ -40,6 +42,26 @@ MACHINE_SHAPE = "NvidiaTeslaT4"
 CPU_ONLY = {"90_analysis"}
 
 
+def _is_api(stem: str) -> bool:
+    """3x_ notebooks are closed models over an API: CPU, every pack."""
+    return stem[:2].isdigit() and stem[0] == "3"
+
+
+def _inject_gemini_key(notebook: Path) -> None:
+    """Like _inject_token, for the Gemini key in .gemini_key at the repo root."""
+    key_file = Path(__file__).resolve().parent.parent / ".gemini_key"
+    key = key_file.read_text(encoding="utf-8").strip()
+    data = json.loads(notebook.read_text(encoding="utf-8"))
+    data["cells"].insert(0, {
+        "cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [],
+        "source": ["# Injected at push time, not present in the repository.\n",
+                   "# DELETE THIS KERNEL VERSION once the run finishes.\n",
+                   "import os\n", f'os.environ["GEMINI_API_KEY"] = "{key}"\n',
+                   'print("Gemini key set inline")\n'],
+    })
+    notebook.write_text(json.dumps(data, indent=1), encoding="utf-8")
+
+
 def metadata(user: str, notebook: Path, attach_pack: bool) -> dict:
     stem = notebook.stem
     return {
@@ -49,10 +71,11 @@ def metadata(user: str, notebook: Path, attach_pack: bool) -> dict:
         "language": "python",
         "kernel_type": "notebook",
         "is_private": True,
-        "enable_gpu": stem not in CPU_ONLY,
-        **({} if stem in CPU_ONLY else {"machine_shape": MACHINE_SHAPE}),
+        "enable_gpu": stem not in CPU_ONLY and not _is_api(stem),
+        **({} if stem in CPU_ONLY or _is_api(stem) else {"machine_shape": MACHINE_SHAPE}),
         "enable_internet": True,
-        "dataset_sources": [f"{user}/{ITEM_PACK_SLUG}"] if attach_pack else [],
+        "dataset_sources": ([f"{user}/{p}" for p in ALL_PACK_SLUGS] if _is_api(stem)
+                            else [f"{user}/{ITEM_PACK_SLUG}"] if attach_pack else []),
         "competition_sources": [],
         "kernel_sources": [],
     }
@@ -97,6 +120,8 @@ def main() -> int:
     ap.add_argument("--only", nargs="*", default=None,
                     help="numeric prefixes to push, e.g. 00 16 17")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--inject-gemini-key", action="store_true",
+                    help="paste .gemini_key into the staged copy of 3x_ notebooks")
     ap.add_argument("--inject-hf-token", action="store_true",
                     help="paste the token from .hf_token into the STAGED notebook "
                          "copy (never the repo one). For gated models when a "
@@ -122,6 +147,8 @@ def main() -> int:
             shutil.copy(path, staged / path.name)
             if args.inject_hf_token:
                 _inject_token(staged / path.name)
+            if args.inject_gemini_key and _is_api(path.stem):
+                _inject_gemini_key(staged / path.name)
             (staged / "kernel-metadata.json").write_text(
                 json.dumps(meta, indent=2), encoding="utf-8")
 

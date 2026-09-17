@@ -200,6 +200,7 @@ class ModelAdapter(ABC):
     # every cell came back unparseable.
     generation_budget: int = 8
     is_control: bool = False         # a baseline, not one of the thirteen models
+    is_api: bool = False             # a closed model over an API: no GPU, no logits
 
     def __init__(self) -> None:
         self.model = None
@@ -433,11 +434,17 @@ def list_adapters(include_controls: bool = False) -> list[str]:
     would misreport how many audio models were evaluated.
     """
     return sorted(k for k, cls in _REGISTRY.items()
-                  if include_controls or not cls.is_control)
+                  if (include_controls or not cls.is_control) and not cls.is_api)
 
 
 def list_controls() -> list[str]:
     return sorted(k for k, cls in _REGISTRY.items() if cls.is_control)
+
+
+def list_api_models() -> list[str]:
+    """Closed models reached over an API. Reported in their own table: they
+    are scored by generation, not logits, and have no hardware signature."""
+    return sorted(k for k, cls in _REGISTRY.items() if cls.is_api)
 
 
 # --------------------------------------------------------------------------

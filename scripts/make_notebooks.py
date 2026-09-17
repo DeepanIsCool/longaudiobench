@@ -30,7 +30,7 @@ REPO_URL = "https://github.com/DeepanIsCool/longaudiobench.git"
 # kernel, and no two models are guaranteed to have been scored by the same code.
 # git clone --depth 1 --branch takes a tag or a branch but not a bare sha, so the
 # pin is a tag. Move it deliberately, never as a side effect of committing.
-REPO_REF = "paper-run-20"
+REPO_REF = "paper-run-21"
 ITEM_PACK_DATASET = "undertone-item-pack"
 
 # HARD pin, not a floor. ">=4.57.1" resolved to transformers 5.0.0 on Kaggle and
@@ -1272,6 +1272,89 @@ def build_expand_notebook(group: str, meetings_expr: str) -> dict:
     ])
 
 
+API_HEADER = """# UNDERTONE - {key} (closed model, Gemini API)
+
+The frontier point the open roster cannot supply. Identical protocol - same
+items, same rendered prompt, same letter-to-role randomisation, same ladder
+windows - through the Gemini API, with one documented difference: the API
+exposes no letter logits, so every cell is **scored by generation with strict
+single-letter parsing** (`scorer: freegen`), thinking disabled so the rows
+compare to the instruct models rather than the thinking variants.
+
+CPU kernel: nothing here needs a GPU. Runs the ladder (L1-L4) on every item
+pack attached - v1 (70), v2 (338), the 600 s band (85) - and resumes from
+whatever `results/` already holds. Uploads are cached per audio, so the ~110
+shared L3/L4 windows of a pack upload once.
+
+The API key comes from Kaggle Secrets (`GEMINI_API_KEY`) or, failing that,
+from a cell injected at push time; it is never in the repository.
+"""
+
+CELL_API_ENV = """\
+import os, glob, json, random, sys
+import numpy as np
+SEED = 20260904
+random.seed(SEED); np.random.seed(SEED)
+# Kaggle Secrets first; a push-time injected cell may already have set it.
+if not os.environ.get("GEMINI_API_KEY"):
+    try:
+        from kaggle_secrets import UserSecretsClient
+        os.environ["GEMINI_API_KEY"] = UserSecretsClient().get_secret("GEMINI_API_KEY")
+    except Exception as exc:
+        print("no GEMINI_API_KEY in Kaggle Secrets:", exc)
+assert os.environ.get("GEMINI_API_KEY"), "GEMINI_API_KEY is not set"
+os.environ.setdefault("GEMINI_RPM", "{rpm}")
+print("key set; RPM", os.environ["GEMINI_RPM"])
+"""
+
+CELL_API_RUN = """\
+sys.path.insert(0, "/kaggle/working/longaudiobench")
+from undertone import ItemPack, adapters, runner
+
+KEY = "{key}"
+OUT_ROOT = f"/kaggle/working/results/{{KEY}}"
+os.makedirs(OUT_ROOT, exist_ok=True)
+os.environ["GEMINI_UPLOAD_CACHE"] = f"{{OUT_ROOT}}/uploads.json"
+
+packs = sorted(glob.glob("/kaggle/input/**/item_pack.jsonl", recursive=True))
+assert packs, "attach the item-pack datasets (v1, v2, 600)"
+adapter = adapters.get_adapter(KEY)
+adapter.load()
+print(KEY, "->", adapter.model_id, "| packs:", len(packs))
+
+for path in packs:
+    pack = ItemPack.load(path)
+    pack_dir = os.path.dirname(path)
+    out = f"{{OUT_ROOT}}/{{pack.fingerprint}}/results.jsonl"
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    print(f"\\n=== pack {{pack.fingerprint}} ({{len(pack)}} items) -> {{out}}")
+    runner.run_model(adapter, pack, out, conditions=["L1", "L2", "L3", "L4"],
+                     audio_root=pack_dir, progress=True)
+    rows = runner.load_rows(out)
+    ok = [r for r in rows if not r.get("error") and r.get("role_chosen")]
+    print(f"rows={{len(rows)}} valid={{len(ok)}} errors={{len(rows)-len(ok)}} api_calls={{adapter.calls}}")
+    for c in ("L1", "L2", "L3", "L4"):
+        s = [r for r in ok if r["condition"] == c]
+        if s:
+            print(f"  {{c}} n={{len(s)}} acc={{sum(r['correct'] for r in s)/len(s):.3f}} "
+                  f"sal={{sum(r['role_chosen']=='salience' for r in s)/len(s):.3f}} "
+                  f"abs={{sum(r['role_chosen']=='absent' for r in s)/len(s):.3f}}")
+print("\\nALL PACKS DONE")
+"""
+
+
+def build_api_notebook(key: str, rpm: int = 20) -> dict:
+    return notebook([
+        md(API_HEADER.format(key=key)),
+        code(CELL_PIP.format(pips="\n".join(
+            f'%pip install -q "{p}"'
+            for p in ["google-genai>=1.0.0", "librosa>=0.10.2", "soundfile>=0.12.1"]))),
+        code(CELL_API_ENV.format(rpm=rpm)),
+        code(CELL_REPO.format(repo_url=REPO_URL, repo_ref=REPO_REF)),
+        code(CELL_API_RUN.format(key=key)),
+    ])
+
+
 def build_analysis_notebook() -> dict:
     return notebook([
         md(ANALYSIS_HEADER),
@@ -1321,10 +1404,17 @@ def main() -> int:
         path.write_text(json.dumps(build_model_notebook(key), indent=1), encoding="utf-8")
         written.append(path)
 
+    # Closed models over an API: 3x numbering, CPU kernels, all packs attached.
+    for n, key in enumerate(adapters.list_api_models(), start=30):
+        path = args.out / f"{n}_{key}.ipynb"
+        path.write_text(json.dumps(build_api_notebook(key), indent=1), encoding="utf-8")
+        written.append(path)
+
     for path in written:
         print(f"wrote {path}")
     print(f"\n{len(written)} notebooks ({len(keys)} models + smoke test, item-pack build, "
-          f"three expansion packs, a 600 s band, cascaded control and analysis)")
+          f"three expansion packs, a 600 s band, cascaded control, "
+          f"{len(adapters.list_api_models())} API models and analysis)")
     return 0
 
 
