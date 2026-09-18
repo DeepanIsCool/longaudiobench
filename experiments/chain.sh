@@ -38,7 +38,12 @@ attach_if_running() {  # name pod_id_file expected deadline dest -> 0 if attache
   local NAME=$1 PIDF=$2 EXPECTED=$3 DEADLINE=$4 DEST=$5
   local POD; POD=$(cat "$PIDF" 2>/dev/null || true); [ -z "$POD" ] && return 1
   export RUNPOD_API_KEY=$(cat .rp_key)
-  .venv/bin/python scripts/runpod/rp.py status 2>/dev/null | grep -q "$POD  $NAME  RUNNING" || return 1
+  # Three tries: one failed API read here sent the chain into a launch the
+  # guard then refused ("already running"), and the chain stopped.
+  local i; for i in 1 2 3; do
+    .venv/bin/python scripts/runpod/rp.py status 2>/dev/null | grep -q "$POD  $NAME  RUNNING" && break
+    [ "$i" = 3 ] && return 1; sleep 20
+  done
   pgrep -f "watchdog.py $POD" >/dev/null || nohup .venv/bin/python scripts/runpod/watchdog.py "$POD" "$EXPECTED" "$DEADLINE" "$DEST" > "results/watchdog_${NAME}.log" 2>&1 &
   pgrep -f "pull.py $POD" >/dev/null || nohup .venv/bin/python scripts/runpod/pull.py "$POD" --dest "$DEST" --minutes "$DEADLINE" > "results/pull_${NAME}.log" 2>&1 &
   echo "$(date -u +%FT%TZ) attached to running pod $POD ($NAME); guards armed"
@@ -64,6 +69,7 @@ run_step() {  # name script pack fp tag expected deadline planned
   fi
   wait_for_stop
   scripts/runpod/bank.sh "$DEST" "$TAG" | tail -2
+  scripts/backup_results.sh 2>&1 | tail -1 || true
   local N; N=$(done_count "$DEST")
   echo "$(date -u +%FT%TZ) $NAME: $N/$EXPECTED DONE"
   if [ "$N" -lt "$EXPECTED" ]; then
