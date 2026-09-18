@@ -155,11 +155,11 @@ moss_audio_8b_thinking       L1 0.614  L3 0.485  abst 0.097  cond 0.650
 
 PROVENANCE
 ==========
-  ladder         rows 30842  valid 30742
+  ladder         rows 31658  valid 31498
   sweep          rows 42432  valid 42432
-  question_only  rows  1632  valid  1632
+  question_only  rows  2040  valid  2040
   cascaded       rows     0  valid     0
-  TOTAL          rows 74906  valid 74806
+  TOTAL          rows 76130  valid 75970
   pack fingerprints: ['56bd324cf6a3']
   code commits:      ['158b2260', '606189d1', '68c75bcb', 'd2290d5a', 'dc1d95e7', 'ee97eeeb']
   items: 70; windows 46; meetings 31; human-verified 0
