@@ -28,9 +28,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from undertone import ItemPack, adapters, runner  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-PACKS = {"v1": ROOT / "UNDERTONE_report/data/item_packs/v1.jsonl",
-         "v2": ROOT / "UNDERTONE_report/data/item_packs/v2.jsonl",
-         "600": ROOT / "UNDERTONE_report/data/item_packs/600.jsonl"}
+PACKS = {"v1": ROOT / "UNDERTONE_report/item_packs/v1.jsonl",
+         "v2": ROOT / "UNDERTONE_report/item_packs/v2.jsonl",
+         "600": ROOT / "UNDERTONE_report/item_packs/600.jsonl"}
 AUDIO_ROOT = {"v1": ROOT / "data/item_pack",
               "v2": ROOT / "data/item_pack_v2", "600": ROOT / "data/item_pack_600"}
 

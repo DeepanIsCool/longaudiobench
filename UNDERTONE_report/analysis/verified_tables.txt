@@ -1,0 +1,165 @@
+
+TABLE 1  Ladder accuracy, 12 models with a complete ladder
+==========================================================
+model                            L1     L2     L3     L4    Retr      LC
+qwen2_5_omni_7b               0.629  0.457  0.414  0.371  +0.214  +0.257
+moss_audio_8b_thinking        0.614  0.485  0.485  0.486  +0.129  +0.129
+qwen2_5_omni_3b               0.600  0.486  0.343  0.400  +0.257  +0.200
+gemma3n_e4b                   0.571  0.157  0.214  0.271  +0.357  +0.300
+moss_audio_4b_thinking        0.565  0.478  0.379  0.439  +0.186  +0.126
+qwen2_audio_7b                0.500  0.200  0.229  0.271  +0.271  +0.229
+gemma3n_e2b                   0.471  0.186  0.229  0.200  +0.243  +0.271
+moss_audio_8b_instruct        0.471  0.257  0.229  0.200  +0.243  +0.271
+aero_1_audio                  0.386  0.243  0.286  0.271  +0.100  +0.114
+moss_audio_4b_instruct        0.329  0.300  0.229  0.229  +0.100  +0.100
+phi4_multimodal               0.314  0.286  0.200  0.243  +0.114  +0.071
+voxtral_mini_3b               0.286  0.200  0.243  0.300  +0.043  -0.014
+mean                                                      +0.188  +0.171
+
+audio_flamingo_next (L1/L2 only; all 140 L3+L4 cells are errors): L1 0.457  L2 0.343
+
+TABLE 2  Role shares by condition, pooled over 12 models
+========================================================
+cond      n   correct  salience   recency    absent
+L1      839     0.522     0.148     0.099     0.231
+L2      837     0.309     0.245     0.129     0.317
+L3      834     0.291     0.260     0.102     0.347
+L4      836     0.340     0.304     0.118     0.238
+
+TABLE 3  Sweep, non-null items only, 11 models (n=660 per level)
+================================================================
+   level     n  accuracy  salience    absent   recency
+       0   780     0.412     0.277     0.190     0.122
+      -3   780     0.403     0.277     0.194     0.127
+      -6   780     0.392     0.285     0.199     0.124
+      -9   780     0.372     0.288     0.212     0.128
+     -12   780     0.368     0.290     0.215     0.127
+     -18   780     0.356     0.306     0.214     0.123
+     -24   780     0.321     0.314     0.240     0.126
+     -60   780     0.149     0.428     0.288     0.135
+
+TABLE 3b  Requested attenuation vs measured contrast (stimulus audit)
+=====================================================================
+ requested   measured   increase      sd  shortfall
+         0       5.20       0.00    0.00      -0.00
+        -3       8.15       2.95    0.07       0.05
+        -6      11.07       5.87    0.18       0.13
+        -9      13.93       8.74    0.36       0.26
+       -12      16.70      11.50    0.63       0.50
+       -18      21.71      16.51    1.57       1.49
+       -24      25.64      20.44    2.99       3.56
+       -60      31.24      26.04    8.32      33.96
+(60 items have a competitor; 10 do not and have no defined contrast)
+
+TABLE 4  C1 inversion: salience-grab at L3+L4
+=============================================
+aero_1_audio                 C1 0.611  P1-P4 0.254  inverted
+gemma3n_e2b                  C1 0.556  P1-P4 0.303  inverted
+phi4_multimodal              C1 0.556  P1-P4 0.197  inverted
+qwen2_audio_7b               C1 0.556  P1-P4 0.246  inverted
+gemma3n_e4b                  C1 0.444  P1-P4 0.344  inverted
+moss_audio_4b_instruct       C1 0.444  P1-P4 0.270  inverted
+moss_audio_4b_thinking       C1 0.444  P1-P4 0.281  inverted
+moss_audio_8b_instruct       C1 0.389  P1-P4 0.270  inverted
+qwen2_5_omni_7b              C1 0.389  P1-P4 0.295  inverted
+qwen2_5_omni_3b              C1 0.333  P1-P4 0.221  inverted
+moss_audio_8b_thinking       C1 0.278  P1-P4 0.233  inverted
+voxtral_mini_3b              C1 0.222  P1-P4 0.197  inverted
+inverted in 12/12 models
+
+TABLE 5  Accuracy / salience-grab by category and condition
+===========================================================
+cat             L1            L2            L3            L4
+P1     0.57 / 0.11   0.21 / 0.34   0.18 / 0.23   0.25 / 0.27
+P2     0.42 / 0.14   0.24 / 0.24   0.22 / 0.25   0.22 / 0.31
+P3     0.47 / 0.11   0.29 / 0.21   0.25 / 0.25   0.29 / 0.29
+P4     0.44 / 0.16   0.32 / 0.26   0.39 / 0.21   0.37 / 0.27
+C1     0.56 / 0.28   0.50 / 0.20   0.35 / 0.42   0.37 / 0.45
+
+TABLE 6  Oracle window, paired by (model, item)
+===============================================
+paired cells 831;  abstention 0.347 -> 0.238  (-0.108)
+  absent -> correct     42  41% of released  +0.051 overall
+  absent -> salience    42  41% of released  +0.051 overall
+  absent -> recency     18  18% of released  +0.022 overall
+L1-L3 gap 0.189;  L4 recovers 9%
+
+TABLE 7  Question-only baseline (4 models)
+==========================================
+models: gemma3n_e2b, moss_audio_4b_instruct, phi4_multimodal, qwen2_5_omni_7b
+no audio, non-null  n=240  acc 0.050  picks absent 0.804
+no audio, null      n= 40  acc 0.925
+full 5 min (L3)     n=834  acc 0.289  picks absent 0.347
+
+TABLE 7b  Cascade vs its matched twin (non-null; Qwen2.5-7B-Instruct vs Qwen2.5-Omni-7B)
+========================================================================================
+cond   text acc  audio acc  text sal  audio sal  text abs  audio abs
+L1        0.450      0.650     0.150      0.150     0.267      0.100
+L2        0.283      0.450     0.300      0.267     0.233      0.133
+L3        0.150      0.417     0.367      0.333     0.333      0.150
+L4        0.150      0.417     0.433      0.350     0.250      0.100
+  text  L3+L4  C1 salience 0.643   P1-P4 0.368
+  audio L3+L4  C1 salience 0.429   P1-P4 0.330
+  L3 paired: audio right/text wrong 18, reverse 2
+
+TABLE 8  Direction consistency across models (two-sided sign test)
+==================================================================
+claim                               up/n          p   verdict
+accuracy falls L1->L3               12/12    0.0005   HOLDS
+salience rises L1->L3               12/12    0.0005   HOLDS
+abstention rises L1->L3              9/12    0.1460   NOT ESTABLISHED
+recency changes L1->L3               5/9     1.0000   null as predicted
+C1 salience > degraded              12/12    0.0005   HOLDS
+degraded abstention > C1            10/12    0.0386   holds
+P1 abstention > C1                   8/11    0.2266   NOT ESTABLISHED
+oracle: abstention falls            12/12    0.0005   HOLDS
+oracle: salience rises              11/12    0.0063   HOLDS
+oracle: accuracy rises              10/11    0.0117   holds
+sweep: accuracy falls               13/13    0.0002   HOLDS
+sweep: salience rises               12/12    0.0005   HOLDS
+sweep: abstention rises             11/12    0.0063   HOLDS
+sweep: recency changes               8/13    0.5811   null as predicted
+
+TABLE 9  P3 natural vs constructed
+==================================
+P3 natural      (10 items) L1  acc 0.408  sal 0.175  abs 0.117
+P3 natural      (10 items) L3  acc 0.294  sal 0.294  abs 0.218
+P3 constructed  (13 items) L1  acc 0.526  sal 0.051  abs 0.282
+P3 constructed  (13 items) L3  acc 0.222  sal 0.222  abs 0.458
+
+TABLE 10  Abstention, accuracy, conditional accuracy (non-null)
+===============================================================
+model                          abst    acc   cond     n
+moss_audio_8b_thinking        0.097  0.586  0.650   214
+qwen2_5_omni_3b               0.242  0.463  0.610   182
+moss_audio_4b_thinking        0.052  0.524  0.553   219
+qwen2_5_omni_7b               0.121  0.483  0.550   211
+moss_audio_4b_instruct        0.396  0.279  0.462   145
+moss_audio_8b_instruct        0.392  0.271  0.445   146
+gemma3n_e4b                   0.263  0.325  0.441   177
+phi4_multimodal               0.454  0.237  0.435   131
+qwen2_audio_7b                0.287  0.308  0.433   171
+voxtral_mini_3b               0.529  0.188  0.398   113
+aero_1_audio                  0.200  0.317  0.396   192
+gemma3n_e2b                   0.312  0.267  0.388   165
+  abstention ~ accuracy                r=-0.902  r2=0.814  t=-6.62  n=12
+  abstention ~ conditional accuracy    r=-0.657  r2=0.432  t=-2.76  n=12
+  parameters ~ accuracy (11 verified)  r=+0.431  r2=0.186  t=+1.43  n=11
+
+TABLE 11  Matched instruct / thinking pairs
+===========================================
+moss_audio_4b_instruct       L1 0.329  L3 0.229  abst 0.396  cond 0.462
+moss_audio_4b_thinking       L1 0.565  L3 0.379  abst 0.052  cond 0.553
+moss_audio_8b_instruct       L1 0.471  L3 0.229  abst 0.392  cond 0.445
+moss_audio_8b_thinking       L1 0.614  L3 0.485  abst 0.097  cond 0.650
+
+PROVENANCE
+==========
+  ladder         rows 30842  valid 30742
+  sweep          rows 42432  valid 42432
+  question_only  rows  1632  valid  1632
+  cascaded       rows     0  valid     0
+  TOTAL          rows 74906  valid 74806
+  pack fingerprints: ['56bd324cf6a3']
+  code commits:      ['158b2260', '606189d1', '68c75bcb', 'd2290d5a', 'dc1d95e7', 'ee97eeeb']
+  items: 70; windows 46; meetings 31; human-verified 0

@@ -2,7 +2,7 @@
 """Build UNDERTONE_report/data/ - one folder per task, one file per model -
 from the per-pack banks in results/banked/.
 
-    data/item_packs/{v1,v2,600}.jsonl
+    item_packs/{v1,v2,600}.jsonl     (beside data/, so data/ is results only)
     data/<task>/<model>.jsonl        v1 + v2 pooled: the 408-item main band
     data/band_600/<task>/<model>.jsonl   the 85-item 600 s band, a separate factor
 
@@ -72,9 +72,10 @@ def write(path, cells):
 def main():
     if os.path.exists(OUT):
         shutil.rmtree(OUT)
-    os.makedirs(os.path.join(OUT, "item_packs"))
+    packs_dir = os.path.join(ROOT, "UNDERTONE_report", "item_packs")
+    os.makedirs(packs_dir, exist_ok=True)
     for pack, p in PACKS.items():
-        shutil.copy(p, os.path.join(OUT, "item_packs", f"{pack}.jsonl"))
+        shutil.copy(p, os.path.join(packs_dir, f"{pack}.jsonl"))
     report = []
     for task in TASKS:
         s1, s2 = sources("v1", task), sources("v2", task)

@@ -21,7 +21,7 @@ if a.budget is not None:
 os.environ.setdefault("OPENAI_SPEND_FILE", str(out_root / "spend.json"))
 adapter = adapters.get_adapter(a.key); adapter.load()
 for p in a.pack:
-    pack = ItemPack.load(ROOT / f"UNDERTONE_report/data/item_packs/{p}.jsonl")
+    pack = ItemPack.load(ROOT / f"UNDERTONE_report/item_packs/{p}.jsonl")
     out = out_root / pack.fingerprint / "question_only.jsonl"
     sweep.question_only(adapter, pack, out)
     rows = [r for r in runner.load_rows(out) if r.get("error") is None and not r.get("logit_degenerate")]
