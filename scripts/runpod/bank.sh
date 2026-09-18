@@ -14,7 +14,7 @@ case "$PACK" in
   v1)  FP=56bd324cf6a3;; v2) FP=0b14538c9854;; 600) FP=7e4fd5c5c30c;;
   *) echo "pack must be v1|v2|600"; exit 1;;
 esac
-DEST=UNDERTONE_report/data/$PACK
+DEST=results/banked/$PACK
 python3 - "$SRC" "$DEST" "$FP" <<'PY'
 import json, os, sys, glob, shutil
 src, dest, fp = sys.argv[1:4]
@@ -44,3 +44,4 @@ for mdir in sorted(glob.glob(os.path.join(src, "*", ""))):
 print(f"banked {banked} files into {dest}")
 PY
 scripts/runpod/push_restore.sh "$SRC" "$SLUG" 2>&1 | tail -1
+python3 scripts/consolidate_report_data.py | tail -1   # rebuild data/ (one folder per task)

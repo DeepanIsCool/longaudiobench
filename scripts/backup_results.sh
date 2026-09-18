@@ -5,7 +5,7 @@
 set -e
 cd "$(dirname "$0")/.."
 SLUG=undertone-raw-results; T=$(mktemp -d)
-for d in results/exp*/; do rsync -a --prune-empty-dirs --include='*/' --include='*.jsonl' --include='*.json' --include='run.log' --include='DONE' --exclude='*' "$d" "$T/results/$(basename "$d")/"; done
+for d in results/exp*/ results/banked/; do rsync -a --prune-empty-dirs --include='*/' --include='*.jsonl' --include='*.json' --include='run.log' --include='DONE' --exclude='*' "$d" "$T/results/$(basename "$d")/"; done
 rsync -a --prune-empty-dirs --include='*/' --include='*.jsonl' --include='*.json' --exclude='*' results/gemini/ "$T/results/gemini/"
 mkdir -p "$T/report_data" && cp -R UNDERTONE_report/data/. "$T/report_data/"
 cat > "$T/dataset-metadata.json" <<JSON
