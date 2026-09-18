@@ -364,7 +364,20 @@ def question_only(adapter, pack, out_path, seed: int = 0, silence_s: float = 20.
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fingerprint = pack.fingerprint
     silence = np.zeros(int(silence_s * sr), dtype=np.float32)
-    items = list(pack)
+    # Resume like the ladder: a killed process must not cost the rows it
+    # already paid for. Valid rows are skipped; error rows are re-run.
+    done = set()
+    if out_path.exists():
+        for line in out_path.read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            if r.get("pack_fingerprint") == fingerprint and r.get("error") is None:
+                done.add(r["item_id"])
+    items = [it for it in pack if it.item_id not in done]
+    if progress and done:
+        print(f"[{adapter.key}] question-only: {len(done)} already done, {len(items)} to run", flush=True)
     written = 0
     with out_path.open("a", encoding="utf-8") as fh:
         for n, item in enumerate(items, 1):
@@ -393,6 +406,7 @@ def question_only(adapter, pack, out_path, seed: int = 0, silence_s: float = 20.
                 row.update(error=f"{type(exc).__name__}: {exc}", role_chosen=None,
                            letter_chosen=None)
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            fh.flush()
             written += 1
             if progress and n % 20 == 0:
                 print(f"  question-only {n}/{len(items)}", flush=True)

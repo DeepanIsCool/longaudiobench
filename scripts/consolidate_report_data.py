@@ -42,9 +42,11 @@ def sources(pack, task):
         for d in ([task, "cascaded"] if task == "ladder" else [task]):
             for f in glob.glob(os.path.join(BANK, "v1_orig", d, "*.jsonl")):
                 out.setdefault(os.path.basename(f)[:-6], []).append(f)
-    if task == "ladder":  # API models bank under results/gemini/<key>/<fp>/
-        for f in glob.glob(os.path.join(ROOT, "results", "gemini", "*", FP[pack], "results.jsonl")):
-            out.setdefault(f.split(os.sep)[-3], []).append(f)
+    if task in ("ladder", "question_only"):  # API models bank under results/<family>/<key>/<fp>/
+        fn = "results.jsonl" if task == "ladder" else "question_only.jsonl"
+        for fam in ("gemini", "openai"):
+            for f in glob.glob(os.path.join(ROOT, "results", fam, "*", FP[pack], fn)):
+                out.setdefault(f.split(os.sep)[-3], []).append(f)
     return out
 
 

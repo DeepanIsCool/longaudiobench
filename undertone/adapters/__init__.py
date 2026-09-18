@@ -15,6 +15,7 @@ from .base import (  # noqa: F401
 from . import (  # noqa: F401,E402
     aero,
     gemini,
+    openai_audio,
     audio_flamingo,
     cascaded,
     gemma3n,
