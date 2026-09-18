@@ -21,7 +21,7 @@ V1 = "56bd324cf6a3"
 def rows(p): return [json.loads(l) for l in open(p) if l.strip()]
 def load(d): return {os.path.basename(f)[:-6]: [x for x in rows(f) if x.get("pack_fingerprint") == V1]
                      for f in sorted(glob.glob(os.path.join(ROOT, "data", d, "*.jsonl")))
-                     if not os.path.basename(f).startswith(("cascaded_", "gemini_"))}
+                     if not os.path.basename(f).startswith(("cascaded_", "gemini_", "gpt_"))}
 def valid(r): return [x for x in r if not x.get("error") and x.get("role_chosen")]
 def share(s, role): return sum(1 for x in s if x["role_chosen"] == role) / len(s)
 def acc(s): return sum(x["correct"] for x in s) / len(s)
