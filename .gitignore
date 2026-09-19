@@ -79,3 +79,4 @@ _kag/
 # with `git add -f` when a version is final, not by default.
 /UNDERTONE_report.zip
 .gemini_key
+.openai_key

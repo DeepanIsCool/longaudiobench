@@ -70,20 +70,25 @@ more often), the most recent other mention, and a byte-identical sentinel
 asserting the fact was never stated --- so that the identity of the chosen
 option localises the failure. Items are harvested from real meetings, not
 spliced in, and stratified by the acoustic reason the answer is hard to hear.
-Across \Nmodels{} open audio-language models from \Nfamilies{} families we
-find: (i)~when the answer is presented in a twenty-second clip the decoy takes
-\roleSalienceLOne{} of choices; when the same item must be retrieved from its
-full recording it takes \roleSalienceLThree{}, while accuracy falls
-\roleCorrectLOne{}\,$\rightarrow$\,\roleCorrectLThree{}, on every model tested;
-(ii)~a timestamp pointing at the answer releases abstention without restoring
-accuracy; (iii)~a causal arm that edits only the answer's level inside its own
-recording leaves the outcome almost unchanged across a 24\,dB range and moves
-it only on removal --- the failure is one of selection under search load, not
-of hearing; (iv)~reasoning post-training halves abstention and raises accuracy
-at fixed size, whereas nominal parameter count predicts neither; and (v)~two
-closed model families reproduce the same direction. Under silence the same
-models abstain almost perfectly, so the presence of audio --- any audio ---
-suppresses justified abstention.
+Across \Nmodels{} open audio-language models from \Nfamilies{} families,
+\Ntwins{} cascaded text twins and three closed models we find: (i)~when the
+answer is presented in a twenty-second clip the decoy takes
+\roleSalienceLOne{} of choices; when the same item must be retrieved from
+its full recording it takes \roleSalienceLThree{}, while accuracy falls
+\roleCorrectLOne{}\,$\rightarrow$\,\roleCorrectLThree{}, on every model
+tested, and most of the loss is incurred by two minutes; (ii)~a causal arm
+that edits only the answer's level, inside its own recording, leaves the
+outcome unchanged across a 24\,dB range and moves it only when the answer is
+pushed below the room-tone floor --- the failure is one of selection among
+heard candidates, not of hearing; (iii)~abstention is a fixed per-model
+policy, not a response to the audio: the same models abstain almost
+perfectly under silence and at a model-specific rate under any audio, and a
+timestamp pointing at the answer releases that abstention into commitment
+without restoring accuracy, except for one closed family that exploits the
+timestamp; (iv)~reasoning post-training raises accuracy and cuts abstention
+at fixed size, whereas nominal parameter count predicts neither; and
+(v)~cascaded transcript systems and both closed families reproduce the same
+direction.
 \end{abstract}
 
 \begin{keywords}
@@ -140,7 +145,7 @@ acoustic salience, abstention
   ymin=0,ymax=0.55, xmin=-27, xmax=2,
   xtick={0,-6,-12,-18,-24}, ytick={0,0.2,0.4},
   xticklabel style={font=\tiny},yticklabel style={font=\tiny},
-  xlabel={answer attenuated by (dB), full recording},xlabel style={font=\tiny},
+  xlabel={answer attenuated by (dB), same recording},xlabel style={font=\tiny},
   ylabel={share},ylabel style={font=\tiny},
   legend style={font=\tiny,at={(0.5,1.30)},anchor=north,legend columns=3,draw=none,column sep=2pt},
   axis lines=left,
@@ -151,7 +156,7 @@ acoustic salience, abstention
 \legend{correct,decoy,sentinel}
 \end{axis}
 \node[anchor=north west,font=\tiny,text width=5.3cm,align=left] at (0.05,-2.3)
- {With the answer \emph{removed} entirely: correct \sweeprmCorrect{},
+ {With the answer below the floor: correct \sweeprmCorrect{},
   \textcolor{csal}{decoy \sweeprmSalience{}}, sentinel \sweeprmAbsent{}.
   Boosting the answer by 9\,dB changes accuracy by \boostMean{}.};
 \end{scope}
@@ -165,9 +170,10 @@ models that ingest the full window, non-null items: accuracy falls
 \roleCorrectLOne{}\,$\rightarrow$\,\roleCorrectLThree{} between a twenty-second clip
 and the full recording, and the decoy absorbs most of what is lost; a
 timestamp pointer (L4) converts sentinel into decoy rather than into correct.
-(c)~Attenuating only the answer inside its own recording, from 0 to
-$-24$\,dB, barely moves any share; deleting it does. The loss under context
-load is not a loss of audibility.}
+(c)~Attenuating only the answer, inside a window of its own recording that
+holds it and its competitor, from 0 to $-24$\,dB barely moves any share;
+pushing it below the room-tone floor does. The loss under context load is
+not a loss of audibility.}
 \label{fig:teaser}
 \end{figure*}
 
@@ -217,16 +223,17 @@ the object this paper measures.
 with a twenty-second window containing the answer, models choose the decoy
 in a minority of cases. Required to retrieve the same answer from its full
 recording, they choose it far more often, and the decoy absorbs most of the
-accuracy that is lost; every model in the roster moves in this direction.
-Telling the model where the answer is converts abstention into commitment
-but restores little accuracy. A causal arm that attenuates only the answer,
-inside its own recording, leaves the outcome nearly unchanged across a
-24\,dB range and changes it only when the answer is deleted --- at which
-point models still prefer the loud decoy to the sentinel that is now the
-right response. Under silence the same models abstain almost perfectly, so
-audio itself is what suppresses the sentinel. Reasoning post-training
-changes the error direction at fixed size; nominal parameter count does not.
-Two closed model families show the same movement.
+accuracy that is lost; every model in the roster --- open, cascaded and
+closed --- moves in this direction, and most of the movement happens by two
+minutes. A causal arm that attenuates only the answer, inside its own
+recording, leaves the outcome unchanged across a 24\,dB range and changes it
+only when the answer is pushed below the room-tone floor --- at which point
+models split between the loud decoy and the sentinel. Abstention turns out
+to be a per-model policy: near-total under silence, model-specific and
+insensitive to the audio otherwise; a timestamp pointer converts it into
+commitment, which only one closed family converts into correct answers.
+Reasoning post-training changes the error direction at fixed size; nominal
+parameter count does not.
 
 \noindent\textbf{Contributions.}
 \begin{enumerate}\itemsep1.5pt \parskip0pt \leftskip-6pt
@@ -242,17 +249,18 @@ control; and an audio-necessity gate that rejects any item a text
 system solves from a transcript (Sec.~\ref{sec:bench}).
 \item \textbf{A four-arm causal prominence study.} Attenuation and boosting of
 the answer, attenuation of its competitor, and a calibrated fine sweep, all
-inside the item's own recording with the delivered dose audited, plus a
-needle-removed level that establishes per-item audio necessity
-(Secs.~\ref{ssec:sweep},~\ref{ssec:causal}).
+inside a window of the item's own recording that holds both, with the
+delivered dose audited, plus a floor level that establishes per-item audio
+necessity (Secs.~\ref{ssec:sweep},~\ref{ssec:causal}).
 \item \textbf{A ladder that separates hearing from finding.} Within-item
 conditions from a twenty-second clip to the full recording and an oracle
 pointer, replicated on a separate ten-minute band and on three closed
 models (Sec.~\ref{sec:results}).
 \item \textbf{Artefact accounting.} Quantification of letter-position
-preference, silent encoder truncation and scorer disagreement, each capable
-of moving role shares by tens of points if ignored
-(Sec.~\ref{ssec:artefacts}).
+preference, silent encoder truncation, a dead option letter, runaway
+reasoning traces and scorer disagreement, each capable of moving role shares
+by tens of points if ignored, with the affected rows excluded from every
+pooled number rather than averaged in (Sec.~\ref{ssec:artefacts}).
 \end{enumerate}
 
 % =====================================================================
@@ -434,10 +442,14 @@ corpus rather than balanced, and Table~\ref{tab:strata} reports them with
 their sizes.
 
 \subsection{Null items}
-Null items reuse a sibling item's audio and options but ask for a value that
-is not there. They are answerable only by the sentinel. Their single purpose
-is to test whether the presence of audio suppresses \emph{justified}
-abstention, which Sec.~\ref{ssec:controls} shows it does.
+Null items reuse a sibling item's audio and options but ask for an
+attribute of a different kind --- a time or a weight over colour or
+percentage options. The values on offer are still spoken in the audio; the
+question is what makes none of them an answer, so the sentinel is the only
+correct response. They therefore test whether a model will decline a
+question whose options do not fit it, with the lure of an audible value on
+the table; Sec.~\ref{ssec:controls} shows that no model does so beyond its
+own abstention rate.
 
 \subsection{Audio-necessity gate}
 Every candidate is rejected if a text model answers it from a transcript.
@@ -477,9 +489,12 @@ from \Nfamilies{} families, including two matched instruct/thinking pairs
 that share a base model and audio encoder, which isolates the effect of
 reasoning post-training from the effect of scale (Table~\ref{tab:models}).
 Documented audio-input limits range from 30\,s to 30\,min and are enforced
-per item; \Ntrunc{} models cannot ingest beyond 30\,s and are reported
-separately (Sec.~\ref{ssec:artefacts}). Three closed models are run through
-their APIs on the same items and letter maps (Sec.~\ref{ssec:closed}).
+per item. Every pooled number in this paper is computed over the
+\Nfullcov{} models whose long-window rows are interpretable: \Ntrunc{}
+models cannot ingest beyond 30\,s, and one more behaves as if it did not
+(Sec.~\ref{ssec:artefacts}); all \Nexcluded{} are reported in every table
+and excluded from every pool. Three closed models are run through their
+APIs on the same items and letter maps (Sec.~\ref{ssec:closed}).
 
 \subsection{Conditions}
 \textbf{L1} presents a twenty-second window centred on the answer: no search
@@ -492,18 +507,28 @@ and letter map are identical across the four.
 
 \subsection{Causal prominence arms}
 \label{ssec:sweep}
-Four edits are applied to the full-window audio, holding recording, speaker,
-words and every other acoustic property fixed. \emph{Attenuation}: only the
-answer span is attenuated by 0, $-3$, $-6$, $-9$, $-12$, $-18$ and $-24$\,dB
-with raised-cosine ramps, then removed ($-60$\,dB). \emph{Boost}: the answer is raised by
-$+3$, $+6$ and $+9$\,dB. \emph{Competitor}: the decoy's own utterance is attenuated
-by $-6$, $-12$ and $-24$\,dB and removed, on the items whose decoy lies inside the
-window. \emph{Calibrated}: the answer is attenuated in 2\,dB steps from 0 to
-$-12$\,dB, the range over which the delivered dose matches the requested one
-to within half a decibel; beyond it room tone bounds the achievable
-contrast, so removal is a binary control rather than a point on the curve.
-Each row stores the measured answer-to-decoy contrast after the edit.
-
+Four edits are applied inside the \emph{contrast window}: the smallest span
+of the item's own recording that holds both the answer and its decoy, padded
+and capped at 90\,s, so that the competitor is always in earshot and the arm
+measures prominence rather than plain audibility. Recording, speaker, words
+and every other acoustic property are held fixed; the unedited window is
+scored alongside as the 0\,dB control, and every level is read against that
+control, not against the ladder. \emph{Attenuation}: only the answer span is
+attenuated by 0, $-3$, $-6$, $-9$, $-12$, $-18$ and $-24$\,dB with
+raised-cosine ramps, then by a nominal $-60$\,dB. \emph{Boost}: the answer is
+raised by $+3$, $+6$ and $+9$\,dB. \emph{Competitor}: the decoy's own
+utterance is attenuated by $-6$, $-12$ and $-24$\,dB and then by $-60$\,dB,
+on the items whose decoy falls inside the window. \emph{Calibrated}: the
+answer is attenuated in 2\,dB steps from 0 to $-12$\,dB. Each row stores the
+measured answer-to-decoy contrast after the edit. The delivered dose tracks
+the nominal one to $-12$\,dB and saturates near the room-tone floor: the
+median achieved contrast change is \achievedTwentyfour{}\,dB at nominal
+$-24$ and \achievedSixty{}\,dB at nominal $-60$, so the last level is ``the
+answer below the floor'', a binary endpoint rather than a point on the
+curve. The arms score every model by letter logits; the two thinking models
+answer after a reasoning span and their first-token logits are not their
+answer, so their arm rows are excluded and the arms are pooled over the
+\Nsweeppool{} logit-scored full-window models.
 \subsection{Controls}
 \label{ssec:controlsetup}
 A \textbf{silence} baseline presents the prompt with twenty seconds of
@@ -567,13 +592,14 @@ of errors rises \Siso{}\,$\rightarrow$\,\Sfull{}. At the level of
 model$\times$item cells, correct falls on \pairCorrectDown{} and rises on
 \pairCorrectUp{} ($p\pairCorrectP{}$), and the decoy rises on
 \pairSalienceUp{} and falls on \pairSalienceDown{} ($p\pairSalienceP{}$).
-Denial also rises (\roleAbsentLOne{}\,$\rightarrow$\,\roleAbsentLThree{},
-$p\pairAbsentP{}$), and recency moves least in absolute terms
-(\roleRecencyLOne{}\,$\rightarrow$\,\roleRecencyLThree{}). At the model level,
-L3 accuracy is below L1 accuracy for \signLThreebelowLOne{} full-window models
-and \signLThreebelowLOneall{} models overall ($p\signPall{}$, sign test); the
-decoy share rises on \signDecoyUp{}; per-model retrieval cost ranges from
-\minRetrievalCost{} to \maxRetrievalCost{} (Table~\ref{tab:models}).
+Recency moves less (\roleRecencyLOne{}\,$\rightarrow$\,\roleRecencyLThree{})
+and the sentinel least (\roleAbsentLOne{}\,$\rightarrow$\,\roleAbsentLThree{}).
+At the model level, L3 accuracy is below L1 accuracy for \signLThreebelowLOne{}
+full-window models and \signLThreebelowLOneall{} models overall ($p\signPall{}$,
+sign test); the decoy share rises on \signDecoyUp{}; per-model retrieval
+cost ranges from \minRetrievalCost{} to \maxRetrievalCost{}
+(Table~\ref{tab:models}). The \Ntwins{} text twins and the three closed
+models fall and shift the same way (Secs.~\ref{ssec:controls},~\ref{ssec:closed}).
 
 The L1 condition is what makes this interpretable. At twenty seconds the
 decoy takes only \roleSalienceLOne{} of choices \emph{even though on most items
@@ -582,6 +608,16 @@ the two conditions; what differs is how much material lies between them and
 around them. The substitution prior is therefore a property of selection
 under context load, not of perception --- a conclusion the causal arm makes
 directly in Sec.~\ref{ssec:causal}.
+
+\finding{Abstention is a per-model policy, not a response to the audio.}
+The sentinel share on non-null items ranges from \absRangeLo{}
+(\absLightest{}) to \absRangeHi{} (\absHeaviest{}) across the pooled models
+at L1, and for \absPolicyStable{} of them it changes by at most six points
+between L1 and L3 (Table~\ref{tab:models}). Under silence the same models
+abstain almost perfectly (Sec.~\ref{ssec:controls}). A model's abstention is
+thus a threshold it applies to ``I found nothing'', set per model and
+largely independent of whether the answer was audible; the marginal error
+under load is not a retreat to the sentinel but capture by the decoy.
 
 \subsection{Search load}
 \label{ssec:bylen}
@@ -605,18 +641,57 @@ Window & Design & Items & Mdl & correct & decoy & recency & sentinel \\
 \end{table}
 
 \finding{Substitution grows with the amount of audio that must be searched;
-most of the growth happens in the first two minutes.}
+most of the growth happens in the first two minutes, and where the answer
+sits in the window does not matter.}
 Table~\ref{tab:len} and Fig.~\ref{fig:len} trace the same items through
 twenty seconds, two minutes and the full five-minute window, then the
 separate ten-minute band. The decoy share climbs
 \lenSalFirst{}\,$\rightarrow$\,\lenSalLast{} and accuracy falls
-\lenCorrFirst{}\,$\rightarrow$\,\lenCorrLast{} across the range. The largest
-single step is L1$\rightarrow$L2: widening a twenty-second window to two
-minutes, which adds at most a handful of competing mentions, moves most of
-the mass that the full window will eventually move. Recency is flat by
-comparison, so the growth is not a generic degradation of long-context
-processing --- if it were, the role that a positional account predicts
-should absorb it would move too.
+\lenCorrFirst{}\,$\rightarrow$\,\lenCorrLast{} across the range. The first
+step is the large one: widening twenty seconds to two minutes costs
+\poolDropOneTwo{} pooled and the further step to five minutes
+\poolDropTwoThree{}, with the first exceeding the second for
+\signStepOneTwo{} models. A few additional competing mentions do most of the
+damage that the whole window will do. The position of the answer inside the
+five-minute window does not predict retrieval: accuracy is
+\posAccFirst{}, \posAccMiddle{} and \posAccLast{} for answers in the first,
+middle and last third of the window, with no dip in the middle and no
+primacy advantage, and recency moves far less than the decoy --- so the
+growth is not the positional degradation that long-context text models show
+\cite{lostmiddle}.
+
+\begin{table}[t]
+\centering\scriptsize
+\setlength{\tabcolsep}{2.2pt}
+\caption{Five-minute band against the separate ten-minute band, per pooled
+model, non-null items: accuracy at L1 and L3, and sentinel and decoy shares
+at L3. The two bands hold different items, so rows are anchored on their own
+L1.}
+\label{tab:band}
+\begin{tabular}{@{}l cccc cccc@{}}
+\toprule
+& \multicolumn{4}{c}{300\,s window} & \multicolumn{4}{c}{600\,s window} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}
+Model & L1 & L3 & sent. & decoy & L1 & L3 & sent. & decoy \\
+\midrule
+\bandSwitchBody
+\bottomrule
+\end{tabular}
+\vspace{-4pt}
+\end{table}
+
+\finding{Doubling the window again changes the failure mode for some
+models: from the wrong value to the sentinel.}
+On the ten-minute band (Table~\ref{tab:band}) every pooled model keeps its
+twenty-second accuracy and loses more at the full window. For
+\NbandSwitch{} models (\bandSwitchNames{}) the extra loss is not a rise in
+decoy choices but a jump in the sentinel share to about half of all
+answers, and the L4 pointer does not bring them back. Two mechanisms fit:
+audio-token positions beyond the trained range degrading the representation,
+so the model reports nothing found, or an unchanged encoder with a retrieval
+policy that abstains once the search space doubles. Feeding these items as
+five-minute windows that still contain the answer and its competitors would
+separate them; that experiment is in the pipeline but not in this paper.
 
 \begin{figure}[t]
 \centering
@@ -646,18 +721,27 @@ full-window models on non-null items.}
 
 \subsection{The oracle condition}
 \label{ssec:oracle}
-\finding{A pointer to the answer releases abstention into commitment without
-proportionally restoring accuracy.}
-L4 adds one line to the L3 prompt: the timestamp of the answer span. Denial
-falls by \oracleDenialDrop{} (\pairAbsentOracleDown{} cells stop abstaining,
-\pairAbsentOracleUp{} start, $p\pairAbsentOracleP{}$) while accuracy rises
-by only \oracleGain{} (\pairCorrectOracleUp{} cells become correct,
-\pairCorrectOracleDown{} become wrong, $p\pairCorrectOracleP{}$); the decoy
-share rises from \roleSalienceLThree{} to \roleSalienceLFour{}
-(Fig.~\ref{fig:teaser}b). The models that were abstaining did not lack a
-location; told the location, most of them pick the loud competitor near it.
-Whatever the pointer buys is bought by the items that were already close to
-being retrieved.
+\finding{A pointer to the answer releases abstention into commitment; only
+one closed family converts the commitment into correct answers.}
+L4 adds one line to the L3 prompt: the timestamp of the answer span. Pooled
+over the open models, denial falls by \oracleDenialDrop{}
+(\pairAbsentOracleDown{} cells stop abstaining, \pairAbsentOracleUp{} start,
+$p\pairAbsentOracleP{}$; the sentinel share falls for \signOracleAbsDown{}
+models) while accuracy rises by only \oracleGain{} (\pairCorrectOracleUp{}
+cells become correct, \pairCorrectOracleDown{} become wrong,
+$p\pairCorrectOracleP{}$); the decoy share rises from
+\roleSalienceLThree{} to \roleSalienceLFour{} (Fig.~\ref{fig:teaser}b). The
+largest open-model gain is \openMaxOracleGain{} (\openMaxOracleName{}, the
+heaviest abstainer, whose released sentinel mass goes partly to the answer).
+The two Gemini models are the exception: their L4 gains are
+\closedgeminiflashOracleGain{} and \closedgeminiliteOracleGain{}, bringing
+both back to their twenty-second level (Sec.~\ref{ssec:closed}). Even the
+\Ntrunc{} models that never receive the audio at the named time cut their
+sentinel share at L4, which isolates the prompt-compliance component: ``the
+fact is at mm:ss'' suppresses ``not mentioned'' independently of any ability
+to seek to mm:ss. The open models that were abstaining did not lack a
+location; told the location, most of them pick the loud competitor near
+it.
 
 \subsection{The causal prominence arms}
 \label{ssec:causal}
@@ -685,12 +769,13 @@ being retrieved.
 \addplot[ccorrect,mark=*,mark size=1pt,thick] coordinates {\calCurve};
 \end{axis}
 \end{tikzpicture}
-\caption{The four causal arms, pooled over full-window models on non-null
-items: correct (green), decoy (orange), sentinel (yellow, dashed). Every edit
-is applied inside the item's own full-window recording with the delivered
-dose audited. Across a 24\,dB attenuation, a 9\,dB boost and removal of the
-competitor, the shares move by a few points; only removing the answer moves
-them.}
+\caption{The four causal arms, pooled over the \Nsweeppool{} logit-scored
+full-window models on non-null items: correct (green), decoy (orange),
+sentinel (yellow, dashed). Every edit is applied inside the contrast window
+of the item's own recording with the delivered dose audited. Across a
+24\,dB attenuation, a 9\,dB boost and attenuation of the competitor to the
+floor, the shares move by a few points; only pushing the answer below the
+floor moves them.}
 \label{fig:causal}
 \vspace{-6pt}
 \end{figure}
@@ -699,9 +784,11 @@ them.}
 \centering\scriptsize
 \setlength{\tabcolsep}{4pt}
 \caption{Per-model effects in the causal arms, accuracy differences on
-non-null items. $\mathcal{A}$: 0\,dB minus removed. Boost: $+9$\,dB minus
-0\,dB. Competitor: competitor removed minus intact. Calibrated: $-12$\,dB
-minus 0\,dB.}
+non-null items, logit-scored models. $\mathcal{A}$: 0\,dB minus the floor
+level. Boost: $+9$\,dB minus 0\,dB. Competitor: competitor at the floor
+minus intact. Calibrated: $-12$\,dB minus 0\,dB. \ctr{Grey} rows are the
+models excluded from pools; their contrast windows are short enough to be
+heard, and their signs agree.}
 \label{tab:causal}
 \begin{tabular}{@{}lcccc@{}}
 \toprule
@@ -714,41 +801,50 @@ Model & $\mathcal{A}$ & Boost & Competitor & Calibrated \\
 \end{table}
 
 \finding{Every model depends on the audio, and none depends on the answer's
-level: attenuation to $-24$\,dB leaves accuracy within a few points, boosting
-buys nothing, and removing the competitor buys almost nothing.}
-Removing the answer costs accuracy on \signAudioDep{} models,
-$\mathcal{A}$ from \audioDepMin{} to \audioDepMax{} (mean \audioDepMean{}),
-which certifies that the items are answered from the audio. But the path to
-that endpoint is flat: pooled accuracy is \sweepCorrz{} at 0\,dB,
-\sweepCorrmTwelve{} at $-12$\,dB and \sweepCorrmTwentyfour{} at $-24$\,dB, then
-\sweepCorrmSixty{} on removal (Fig.~\ref{fig:causal}, top left). The calibrated
-arm, whose delivered dose is exact, gives a mean change of \calMean{} at
-$-12$\,dB (\signCal{} models negative). Boosting the answer by 9\,dB changes
-accuracy by \boostMean{} on average (range \boostMin{} to \boostMax{}).
-Attenuating and then removing the decoy's own utterance raises accuracy by
-\compMean{} (\signComp{} models positive) and lowers the decoy share from
-\compDecoyZero{} to \compDecoyRemoved{} --- the decoy is still chosen at
-that rate when its utterance is no longer audible, which means the choice is
-carried by its other mentions and by the prior, not by the loud token
-itself.
+level: the dose--response is flat, then a cliff at the floor; boosting buys
+nothing; silencing the competitor buys almost nothing.}
+Pushing the answer below the floor costs accuracy on \signAudioDep{} pooled
+models (and \signAudioDepAll{} logit-scored models including the excluded
+ones), $\mathcal{A}$ from \audioDepMin{} to \audioDepMax{} (mean
+\audioDepMean{}), which certifies that the items are answered from the
+audio. But the path to that endpoint is flat: pooled accuracy is
+\sweepCorrz{} at 0\,dB, \sweepCorrmTwelve{} at $-12$\,dB and
+\sweepCorrmTwentyfour{} at $-24$\,dB (an achieved change of
+\achievedTwentyfour{}\,dB), then \sweepCorrmSixty{} at the floor
+(Fig.~\ref{fig:causal}, top left): a drop of \cliffDrop{} over the last few
+achieved decibels after almost none over the first twenty. There is no
+graded audibility regime; the answer is either still decodable or gone. The
+calibrated arm, whose delivered dose is exact, gives a mean change of
+\calMean{} at $-12$\,dB (\signCal{} models negative). Boosting the answer by
+9\,dB changes accuracy by \boostMean{} on average (range \boostMin{} to
+\boostMax{}). Attenuating the decoy's own utterance to the floor raises
+accuracy by \compMean{} (\signComp{} models positive) and lowers the decoy
+share only from \compDecoyZero{} to \compDecoyRemoved{}: the decoy is still
+chosen at nearly that rate when its loudest utterance is inaudible, so the
+choice is carried by its other mentions and by the prior, not by the loud
+token, and the freed mass goes to the sentinel and to recency rather than
+to the answer. The competitor is not masking the answer.
 
 Taken with Sec.~\ref{ssec:overall}, this locates the failure. The same
 answer, at the same level, is retrieved from twenty seconds and lost from
-five minutes; changing its level by 24\,dB inside the five minutes changes
-nothing; only making it disappear does. The models are not failing to
-\emph{hear} a quiet answer. They are failing to \emph{select} it once
-enough competing material surrounds it, and the selection is insensitive to
-the acoustic property that the strata were built around.
+five minutes; changing its level by 24\,dB changes nothing; only making it
+disappear does. Audio encoders normalise level, so a $-24$\,dB word is still
+a word. The models are not failing to \emph{hear} a quiet answer. They are
+failing to \emph{select} it once enough competing material surrounds it,
+and the selection is insensitive to the acoustic property the strata were
+built around.
 
-\finding{With the answer deleted, models prefer the loud decoy to the
-sentinel that is now the right response.}
-At the removed level the correct option is chosen on \sweeprmCorrect{} of
-cells --- residual prior and letter effects --- while the decoy takes
-\sweeprmSalience{} and the sentinel \sweeprmAbsent{}. The decoy share rises
-on removal for \signSweepDecoyUp{} models and the sentinel share for
-\signSweepDenialUp{}. Both failures grow when the evidence is gone, but a
-correct abstention is not the dominant response to absent evidence when
-audio is present.
+\finding{With the answer below the floor, models do not guess it; they split
+between the loud decoy and the sentinel, in model-specific proportions.}
+At the floor the correct option is chosen on \sweeprmCorrect{} of cells,
+below chance --- models do not guess a value they did not hear --- while the
+decoy takes \sweeprmSalience{} (up \sweepDecoyRise{} from 0\,dB, rising for
+\signSweepDecoyUp{} models) and the sentinel \sweeprmAbsent{} (up
+\sweepDenialRise{}, rising for \signSweepDenialUp{}). Which of the two
+absorbs the lost mass is a model trait --- the heavy abstainers go to the
+sentinel, the committed answerers to the decoy --- and the decoy share at
+the floor is the cleanest single measurement of the ``loudest mention
+wins'' prior, because it is taken with the answer out of contention.
 
 \subsection{Prominence strata}
 \label{ssec:strata_results}
@@ -758,9 +854,13 @@ the answer is hard. Retrieval cost is largest for stratum \catRmaxName{}
 (\catRminVal{}); the decoy share at full is highest for \catDecMaxName{}
 (\catDecMaxVal{}) and lowest for \catDecMinName{} (\catDecMinVal{}). Every
 stratum shows the same direction --- accuracy down, decoy up, from L1 to L3
---- and the strata differ in how much the \emph{context} costs, not in how
-much the level costs: read against Sec.~\ref{ssec:causal}, a quiet answer is
-lost under load, but making it louder does not bring it back.
+--- and the strata converge at the full window: the labels mostly describe
+how hard the answer is at twenty seconds, and the context cost then closes
+the gap. The lexical stratum C1 is neither easier nor harder than the
+acoustic ones at L1. Read against Sec.~\ref{ssec:causal}, a quiet answer is
+lost under load, but making it louder does not bring it back; the strata
+sort items by how much the \emph{context} costs, not by how much the level
+costs.
 
 \subsection{Controls}
 \label{ssec:controls}
@@ -783,18 +883,26 @@ Model & Cells & Acc & Sent.\ (non-null) & Sent.\ (null) \\
 \vspace{-4pt}
 \end{table}
 
-\finding{Under silence the models abstain almost perfectly; under audio they
-abstain no more on unanswerable items than on answerable ones.}
+\finding{Under silence the models abstain almost perfectly; under audio,
+null accuracy is just the model's abstention rate.}
 With twenty seconds of silence in place of the recording, pooled accuracy on
 non-null items is \qoPoolAcc{} and the sentinel takes \qoPoolSentinel{} of
 choices; on null items it takes \qoNullSentinel{} (Table~\ref{tab:silence}).
-The question and options do not leak the answer, and the sentinel behaviour
-is well calibrated when there is nothing to hear. With the full recording
-present, the sentinel takes \roleAbsentLThree{} of non-null choices and
-\nullSentinelLThree{} of null choices: a calibration gap of \calibGapLThree{}. The
-models do not distinguish an item whose answer is absent from one whose
-answer they failed to find. Audio suppresses justified abstention exactly as
-much as unjustified abstention.
+The question and options do not leak the answer, the models can tell silence
+from speech, and the sentinel is their response to it. With the full
+recording present, the sentinel takes \roleAbsentLThree{} of non-null
+choices and \nullSentinelLThree{} of null choices: a calibration gap of
+\calibGapLThree{}. On null items the audible lure --- the value of the
+sibling item, which the question does not ask for --- is chosen on
+\nullLureLOne{} of cells at L1 and \nullLureLThree{} at L3. Across every
+model in the study, null accuracy and the non-null sentinel rate are almost
+the same quantity (Spearman $\rho=\nullSpearman{}$ over \nullSpearmanN{}
+models): the best null score among the open models belongs to the heaviest
+abstainer (\nullBestOpenName{}, \nullBestOpen{}), and the strongest content
+models choose the lure on most null items. No model detects the absence of
+an answer as such; a grounded model answers with the value it heard, and
+what looks like abstention calibration is the per-model policy of
+Sec.~\ref{ssec:overall}.
 
 \begin{table}[t]
 \centering\scriptsize
@@ -813,19 +921,22 @@ Cascade & L1 & L3 & $\mathcal{R}$ & decoy & sentinel \\
 \vspace{-4pt}
 \end{table}
 
-\finding{A cascade loses the answer in the same direction, and the best
-audio model beats its own text twin pairwise.}
-Given the same windows as transcripts, the \Ntwins{} text models fall
-\twinCorrOne{}\,$\rightarrow$\,\twinCorrThree{} from L1 to L3 with a decoy share of
-\twinDecoyThree{} at L3 (Table~\ref{tab:twins}): the substitution prior is not
-confined to the audio pathway, it is a property of selecting among competing
-values in a long context. The audio-necessity gate is what keeps the twins
-near chance on the acoustic strata (Appendix~\ref{app:twincat}). Pairing the
-strongest open audio model with the cascade built on its own text sibling,
-the audio model is right where the text twin is wrong on
-\twinPairAudioRight{} items and the reverse on \twinPairTextRight{}
-($p\twinPairP{}$): the audio pathway carries information the transcript has
-lost, and loses it again under load.
+\finding{A cascade loses the answer in the same direction, and an
+end-to-end audio model beats its own text twin pairwise.}
+Given the same windows as transcripts, all \Ntwins{} text models fall from
+L1 to L3 (\signTwinDrop{}; pooled
+\twinCorrOne{}\,$\rightarrow$\,\twinCorrThree{}) and all shift toward the
+decoy (\signTwinDecoyUp{}; pooled decoy share \twinDecoyThree{} at L3,
+Table~\ref{tab:twins}): the substitution prior is not confined to the audio
+pathway, it is a property of selecting among competing values in a long
+context, and it appears in text models given a gapped quote and a
+five-minute transcript. The audio-necessity gate is what keeps the twins
+near chance on the acoustic strata (Appendix~\ref{app:twincat}). Pairing an
+open audio model with the cascade built on its own text-model family, the
+audio model is right where the text twin is wrong on \twinPairAudioRight{}
+items and the reverse on \twinPairTextRight{} ($p\twinPairP{}$), and the two
+pipelines fail on largely different items: the audio pathway carries
+information the transcript has lost, and loses it again under load.
 
 \subsection{Closed models}
 \label{ssec:closed}
@@ -848,19 +959,28 @@ Model & Items & L1 & L2 & L3 & L4 & $\mathcal{R}$ & decoy & sent. & Ref. \\
 \vspace{-4pt}
 \end{table}
 
-\finding{Two closed families reproduce the direction; a stronger model
-loses less, but loses it the same way.}
-Gemini 3.5 Flash is the strongest closed model in the study at both ends
+\finding{Two closed families reproduce the direction; the strongest model
+loses less, loses it the same way, and is the only one that can use a
+timestamp.}
+Gemini 3.5 Flash is the strongest model in the study at every condition
 (\closedgeminiflashCorrOne{}\,$\rightarrow$\,\closedgeminiflashCorrThree{})
 and still loses accuracy on \closedgeminiflashPairDown{} items against
-\closedgeminiflashPairUp{} ($p\closedgeminiflashPairP{}$); its lighter
-sibling and GPT-audio-mini show the same paired asymmetry
-(Table~\ref{tab:closed}). GPT-audio-mini adds a failure mode absent from
-every open model: on \closedgptaudiominiRefusals{} full-window items it
-declines to answer, in most cases stating that it cannot identify a speaker
-from a voice sample, and on none of the twenty-second clips. The refusal is
-triggered by the length of the audio, not by the question, which is
-identical in both conditions.
+\closedgeminiflashPairUp{} ($p\closedgeminiflashPairP{}$), with the same
+shift toward the decoy; its lighter sibling and GPT-audio-mini show the same
+paired asymmetry (Table~\ref{tab:closed}). What separates the Gemini models
+is L4: gains of \closedgeminiflashOracleGain{} and
+\closedgeminiliteOracleGain{}, uniform over where the answer sits, against
+at most \openMaxOracleGain{} for any open model. Two mechanisms fit ---
+genuine timestamp-addressable audio tokens, or the same prompt-compliance
+effect landing on a model whose content answers are mostly right --- and an
+L4 with a deliberately wrong timestamp would separate them. GPT-audio-mini
+adds a failure mode absent from every open model: on
+\closedgptaudiominiRefusals{} full-window non-null items it declines to
+answer, in most cases stating that it cannot identify a speaker from a voice
+sample, and on none of the twenty-second clips; the refusals concentrate in
+the overlapped (\refusPTwo{}) and self-repair (\refusPFour{}) strata. The
+trigger is the length of the audio, not the question, which is identical in
+both conditions.
 
 \subsection{Scale and post-training}
 \label{ssec:byscale}
@@ -891,13 +1011,16 @@ $p=\pAccSize{}$ against $\log$ parameters).}
 \vspace{-6pt}
 \end{figure}
 
-\finding{Parameter count predicts neither accuracy nor error direction in
-this roster; reasoning post-training predicts both.}
+\finding{Parameter count predicts neither accuracy nor error direction
+across the roster; within a family, size helps a little at the full window
+and reasoning post-training helps a lot at every window.}
 Across the \NscaleModels{} models with a stated size, $\mathcal{S}$ spans
 \salErrLo{} to \salErrHi{} with no relation to $\log$ parameters
 ($r=\rSalErrSize{}$, $p=\pSalErrSize{}$), and accuracy is no better
-predicted ($r=\rAccSize{}$, $p=\pAccSize{}$; Fig.~\ref{fig:scale}). The
-matched pairs are decisive. At 4B, the thinking variant abstains on
+predicted ($r=\rAccSize{}$, $p=\pAccSize{}$; Fig.~\ref{fig:scale}). Within
+a family the larger variant is no better at twenty seconds and somewhat
+better at the full window (Table~\ref{tab:pairs}). The matched
+instruct/thinking pairs are decisive. At 4B, the thinking variant abstains on
 \mossFourbThinkDen{} of full-window items against \mossFourbInstDen{} for
 its instruct sibling, with accuracy \mossFourbThinkCorr{} against
 \mossFourbInstCorr{}; at 8B, \mossEightbThinkDen{} against
@@ -909,9 +1032,27 @@ but the substitution share of errors \emph{rises} with it
 \mossEightbInstS{}\,$\rightarrow$\,\mossEightbThinkS{}): what the thinking
 model no longer denies, it more often substitutes.
 
+\begin{table}[t]
+\centering\scriptsize
+\setlength{\tabcolsep}{4pt}
+\caption{Size within a family: smaller / larger variant, non-null items.
+Accuracy at L1 and L3 and the substitution share of errors at L3.}
+\label{tab:pairs}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Pair & L1 & L3 & $\mathcal{S}$ \\
+\midrule
+\sizePairBody
+\bottomrule
+\end{tabular}
+\vspace{-4pt}
+\end{table}
+
 \subsection{Artefacts}
 \label{ssec:artefacts}
-Three artefacts would each move role shares by tens of points if ignored.
+Five artefacts would each move role shares by tens of points if ignored.
+None is averaged in; each is measured and its rows are excluded from the
+pools.
 
 \textbf{Letter position.} Pooled at L3, the most and least chosen letters take
 \letterMax{} and \letterMin{} of choices; the sentinel is chosen at
@@ -931,10 +1072,28 @@ long-audio understanding, and pooling these models with the rest would
 quietly attribute the limit to retrieval. They are reported in
 Table~\ref{tab:models} and excluded from every pooled number.
 
+\textbf{A dead option.} Aero-1-Audio chooses one of the four letters on
+well under one percent of its cells, so a quarter of every item set is
+unanswerable for it whatever it hears; its per-cell latency is also the same
+at twenty seconds and at five minutes, whereas every other full-window model
+takes several times longer on the long window. Its long-window rows are
+reported in Table~\ref{tab:models} and treated as those of a truncated
+model.
+
+\textbf{Runaway reasoning.} The thinking models occasionally fail to emit
+an answer, producing repeated sentences until the generation budget ends;
+these cells are counted as unparsed, not wrong, and their number grows with
+the window (\unparsedThinkFourb{} and \unparsedThinkEightb{} cells at
+L1--L4 for the 4B and 8B variants).
+
 \textbf{Scorer.} For the logit-scored models the free generation agrees with
 the letter argmax on \scorerAgree{} of full-window cells. Thinking models and
-API models can only be scored by generation. A comparison that crosses the
-scorer boundary carries that disagreement; none of the sign tests above does.
+API models can only be scored by generation, and the thinking models' first-
+token logits are not their answer, which is why their rows are excluded from
+the causal arms. The ladder and the causal arms also draw different letter
+maps for the same item, so item-level agreement between the two is not
+expected and no claim in this paper compares them cell by cell; every level
+in an arm is read against that arm's own 0\,dB control.
 
 \begin{figure}[t]
 \centering
@@ -994,15 +1153,21 @@ the answer span at short ones, on the same items. The causal arm supplies
 the contrastive pairs that make that test cheap.
 
 \subsection{Implications for evaluation practice}
-Three practices follow directly. First, report an isolated condition
+Four practices follow directly. First, report an isolated condition
 alongside any long-audio score; without it a low number cannot be attributed
 to search rather than hearing. Second, report at least two numbers:
 retrieval cost and substitution share of errors. The second is scale-free,
 which the raw decoy share is not, and the pair is small enough to fit in a
 leaderboard column. Third, report coverage. Three of the models in this
-study cannot ingest a five-minute recording; scoring them alongside models
-that can, and pooling the result, produces a benchmark that quietly measures
-encoder limits and calls it long-audio understanding.
+study cannot ingest a five-minute recording and a fourth behaves as if it
+cannot; scoring them alongside models that can, and pooling the result,
+produces a benchmark that quietly measures encoder limits and calls it
+long-audio understanding. Fourth, rank models, not items: pairwise agreement
+on which items are solved is low at the full window (mean Cohen's
+$\kappa=\kappaMean{}$, range \kappaMin{}--\kappaMax{}, across the pooled
+models; \itemsNoneLThree{} of \itemsCommon{} common items are solved by
+none and \itemsAllLThree{} by all), so item difficulty is model-specific
+and a fixed ``hard subset'' would encode one model's failures.
 
 \subsection{Implications for model development}
 The scale result has direct practical content: within this roster the
@@ -1030,14 +1195,15 @@ them.
 \section{Limitations}
 \label{sec:limits}
 
-\textbf{One corpus, one language.} Every item is cut from \corpus{}, in
-English. The corpus spans role-played and real meetings, and the error
-direction is the same in both (Appendix~\ref{app:scenario}), but the harvest
-selects for conversations that discuss several values of one kind, which is
-a real and common configuration and not a random sample of speech. The
-pipeline is corpus-agnostic --- a loader that yields time-aligned,
-speaker-labelled segments is the only corpus-specific component --- and
-extension to \plannedcorpus{} is in progress.
+\textbf{Meetings, in English.} Every item is cut from \corpus{}
+(Appendix~\ref{app:corpus}), in English. The material spans role-played and
+real meetings, and the error direction is the same in both
+(Appendix~\ref{app:scenario}), but the harvest selects for conversations
+that discuss several values of one kind, which is a real and common
+configuration and not a random sample of speech. The pipeline is
+corpus-agnostic --- a loader that yields time-aligned, speaker-labelled
+segments is the only corpus-specific component --- and extension to
+\plannedcorpus{} is the first item of future work.
 
 \textbf{The model axis is small.} Every cross-model claim rests on
 \Nmodels{} open systems and three closed ones. The scale analysis in
@@ -1061,6 +1227,19 @@ than a question about delivery.
 \textbf{Closed models are partial.} The API runs cover the ladder for one
 Gemini model fully and one partially, and only two conditions for
 GPT-audio-mini; no causal arm was run through an API.
+
+\textbf{The causal arms are not the ladder.} The arms edit a contrast
+window of at most 90\,s, not the five-minute window, because the competitor
+has to be in earshot for the edit to mean anything. Their 0\,dB rows are
+therefore a separate condition, scored with their own letter map, and every
+arm result is a within-arm contrast. The claim they license is about the
+answer's level, and it transfers to the ladder only through the argument of
+Sec.~\ref{ssec:causal}, not by identity of the audio.
+
+\textbf{Null items are attribute traps.} Their audible lure is by design;
+a null item that removed every candidate value from the audio would test a
+different ability --- detecting that a fact was never stated --- and this
+benchmark does not contain such items.
 
 % =====================================================================
 \section{Conclusion and Future Work}
@@ -1120,6 +1299,16 @@ below \subSignMin{} of \Nfullcov{}. The headline direction is fixed by the
 effect size, not by the item count; what additional items buy is resolution
 on the small effects of Sec.~\ref{ssec:causal} and on per-stratum cells.
 
+\section{Packs and clusters}
+\label{app:packs}
+The item set was built in two disjoint packs with different stratum mixes.
+At the full window no pooled model differs between packs (\packSig{} at
+$p<0.05$, two-proportion test on L3 accuracy), so they are pooled with pack
+kept as a column. Items that share a window share audio, but sharing does
+not make them co-fail: the intraclass correlation of L3 correctness within
+window ranges from \iccLo{} to \iccHi{} across the pooled models, so the
+cluster-robust tests reported above are close to their i.i.d. counterparts.
+
 \section{Scenario and non-scenario meetings}
 \label{app:scenario}
 On the role-played scenario meetings, pooled accuracy falls
@@ -1129,6 +1318,22 @@ On the role-played scenario meetings, pooled accuracy falls
 sentinel \NonscenDen{}. The non-scenario items are fewer and their
 strata mix differs, so the two are reported rather than compared; the
 direction is the same in both.
+
+\section{By corpus}
+\label{app:corpus}
+\begin{table}[h]
+\centering\scriptsize
+\setlength{\tabcolsep}{3pt}
+\caption{Error direction by source corpus, pooled over the full-window
+models on non-null items; same columns as Table~\ref{tab:strata}.}
+\begin{tabular}{@{}lr cc c ccc@{}}
+\toprule
+Corpus & Items & 20\,s & full & $\mathcal{R}$ & decoy & recency & sentinel \\
+\midrule
+\corpusBody
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{Text twins by stratum}
 \label{app:twincat}

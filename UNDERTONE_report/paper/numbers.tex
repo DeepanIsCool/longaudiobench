@@ -14,231 +14,235 @@
 \newcommand{\Nnonscenario}{59}
 \newcommand{\NitemsBand}{85}
 \newcommand{\Nmodels}{13}
-\newcommand{\Nfullcov}{10}
+\newcommand{\Nfullcov}{9}
 \newcommand{\Ntrunc}{3}
+\newcommand{\Nsweeppool}{7}
+\newcommand{\Nexcluded}{4}
 \newcommand{\Nfamilies}{7}
 \newcommand{\Ntwins}{4}
-\newcommand{\ladderBody}{Qwen2-Audio-7B & Qwen & 7.0 & \ctr{30\,s} & logit & 0.57 & 0.20 & 0.23 & 0.25 & 0.35 & 0.25 & 0.36 & 0.32 & 0.18 \\
+\newcommand{\ladderBody}{\ctr{Qwen2-Audio-7B} & Qwen & 7.0 & \ctr{30\,s} & logit & 0.57 & 0.20 & 0.23 & 0.25 & 0.35 & 0.25 & 0.36 & 0.32 & 0.18 \\
 Qwen2.5-Omni-3B & Qwen & 3.0 & $\geq$\,600\,s & logit & 0.59 & 0.51 & 0.36 & 0.40 & 0.23 & 0.23 & 0.31 & 0.35 & 0.27 \\
 Qwen2.5-Omni-7B & Qwen & 7.0 & $\geq$\,600\,s & logit & 0.62 & 0.44 & 0.44 & 0.46 & 0.18 & 0.25 & 0.16 & 0.44 & 0.29 \\
 Phi-4-multimodal & Microsoft & 5.6 & $\geq$\,600\,s & logit & 0.35 & 0.24 & 0.18 & 0.24 & 0.17 & 0.23 & 0.45 & 0.28 & 0.15 \\
-Gemma-3n-E2B & Google & 2.0 & \ctr{30\,s} & logit & 0.58 & 0.18 & 0.17 & 0.23 & 0.41 & 0.18 & 0.53 & 0.21 & 0.06 \\
-Gemma-3n-E4B & Google & 4.0 & \ctr{30\,s} & logit & 0.61 & 0.19 & 0.18 & 0.26 & 0.43 & 0.20 & 0.47 & 0.24 & 0.09 \\
-Aero-1-Audio & LMMS & 1.5 & $\geq$\,600\,s & logit & 0.43 & 0.28 & 0.26 & 0.28 & 0.17 & 0.27 & 0.23 & 0.37 & 0.09 \\
+\ctr{Gemma-3n-E2B} & Google & 2.0 & \ctr{30\,s} & logit & 0.58 & 0.18 & 0.17 & 0.23 & 0.41 & 0.18 & 0.53 & 0.21 & 0.06 \\
+\ctr{Gemma-3n-E4B} & Google & 4.0 & \ctr{30\,s} & logit & 0.61 & 0.19 & 0.18 & 0.26 & 0.43 & 0.20 & 0.47 & 0.24 & 0.09 \\
+\ctr{Aero-1-Audio} & LMMS & 1.5 & \ctr{see \S\ref{ssec:artefacts}} & logit & 0.43 & 0.28 & 0.26 & 0.28 & 0.17 & 0.27 & 0.23 & 0.37 & 0.09 \\
 Voxtral-Mini-3B & Mistral & 3.0 & 600\,s & logit & 0.23 & 0.17 & 0.13 & 0.23 & 0.10 & 0.16 & 0.61 & 0.19 & 0.13 \\
 MOSS-Audio-4B-Instruct & OpenMOSS & 4.0 & $\geq$\,600\,s & logit & 0.42 & 0.31 & 0.24 & 0.27 & 0.18 & 0.24 & 0.38 & 0.32 & 0.22 \\
-MOSS-Audio-4B-Thinking & OpenMOSS & 4.0 & $\geq$\,600\,s & gen & 0.66 & 0.53 & 0.45 & 0.51 & 0.21 & 0.30 & 0.08 & 0.55 & 0.26 \\
+MOSS-Audio-4B-Thinking & OpenMOSS & 4.0 & $\geq$\,600\,s & gen & 0.66 & 0.53 & 0.45 & 0.51 & 0.21 & 0.30 & 0.08 & 0.55 & n/a \\
 MOSS-Audio-8B-Instruct & OpenMOSS & 8.0 & $\geq$\,600\,s & logit & 0.48 & 0.31 & 0.24 & 0.25 & 0.24 & 0.18 & 0.46 & 0.24 & 0.25 \\
-MOSS-Audio-8B-Thinking & OpenMOSS & 8.0 & $\geq$\,600\,s & gen & 0.68 & 0.54 & 0.51 & 0.54 & 0.17 & 0.26 & 0.10 & 0.53 & 0.22 \\
+MOSS-Audio-8B-Thinking & OpenMOSS & 8.0 & $\geq$\,600\,s & gen & 0.68 & 0.54 & 0.51 & 0.54 & 0.17 & 0.26 & 0.10 & 0.53 & n/a \\
 Audio-Flamingo-Next & NVIDIA & -- & $\geq$\,600\,s & logit & 0.63 & 0.49 & 0.46 & 0.44 & 0.17 & 0.29 & 0.08 & 0.54 & 0.29 \\}
-\newcommand{\roleCorrectLOne}{0.51}
-\newcommand{\roleSalienceLOne}{0.14}
-\newcommand{\roleRecencyLOne}{0.10}
-\newcommand{\roleAbsentLOne}{0.25}
-\newcommand{\roleCorrectLTwo}{0.38}
+\newcommand{\roleCorrectLOne}{0.52}
+\newcommand{\roleSalienceLOne}{0.13}
+\newcommand{\roleRecencyLOne}{0.09}
+\newcommand{\roleAbsentLOne}{0.26}
+\newcommand{\roleCorrectLTwo}{0.39}
 \newcommand{\roleSalienceLTwo}{0.22}
-\newcommand{\roleRecencyLTwo}{0.14}
-\newcommand{\roleAbsentLTwo}{0.26}
+\newcommand{\roleRecencyLTwo}{0.12}
+\newcommand{\roleAbsentLTwo}{0.27}
 \newcommand{\roleCorrectLThree}{0.33}
 \newcommand{\roleSalienceLThree}{0.24}
-\newcommand{\roleRecencyLThree}{0.15}
+\newcommand{\roleRecencyLThree}{0.14}
 \newcommand{\roleAbsentLThree}{0.29}
-\newcommand{\roleCorrectLFour}{0.36}
+\newcommand{\roleCorrectLFour}{0.37}
 \newcommand{\roleSalienceLFour}{0.26}
-\newcommand{\roleRecencyLFour}{0.16}
+\newcommand{\roleRecencyLFour}{0.15}
 \newcommand{\roleAbsentLFour}{0.22}
 \newcommand{\retrievalCost}{0.18}
-\newcommand{\coordsRoles}{(L1,0.508) (L2,0.380) (L3,0.325) (L4,0.361)}
-\newcommand{\coordsCorrect}{(L1,0.508) (L2,0.380) (L3,0.325) (L4,0.361)}
-\newcommand{\coordsSalience}{(L1,0.137) (L2,0.223) (L3,0.241) (L4,0.263)}
-\newcommand{\coordsRecency}{(L1,0.102) (L2,0.135) (L3,0.148) (L4,0.160)}
-\newcommand{\coordsAbsent}{(L1,0.253) (L2,0.261) (L3,0.286) (L4,0.216)}
+\newcommand{\coordsRoles}{(L1,0.516) (L2,0.392) (L3,0.332) (L4,0.370)}
+\newcommand{\coordsCorrect}{(L1,0.516) (L2,0.392) (L3,0.332) (L4,0.370)}
+\newcommand{\coordsSalience}{(L1,0.129) (L2,0.215) (L3,0.238) (L4,0.260)}
+\newcommand{\coordsRecency}{(L1,0.092) (L2,0.125) (L3,0.138) (L4,0.151)}
+\newcommand{\coordsAbsent}{(L1,0.262) (L2,0.268) (L3,0.292) (L4,0.220)}
 \newcommand{\Sfull}{0.36}
-\newcommand{\Siso}{0.28}
-\newcommand{\pairCorrectDown}{811}
-\newcommand{\pairCorrectUp}{166}
-\newcommand{\pairCorrectP}{<10^{-102}}
-\newcommand{\pairSalienceDown}{155}
-\newcommand{\pairSalienceUp}{520}
-\newcommand{\pairSalienceP}{<10^{-47}}
-\newcommand{\pairAbsentDown}{322}
-\newcommand{\pairAbsentUp}{438}
-\newcommand{\pairAbsentP}{<10^{-5}}
-\newcommand{\pairRecencyDown}{131}
-\newcommand{\pairRecencyUp}{295}
+\newcommand{\Siso}{0.27}
+\newcommand{\pairCorrectDown}{727}
+\newcommand{\pairCorrectUp}{143}
+\newcommand{\pairCorrectP}{<10^{-95}}
+\newcommand{\pairSalienceDown}{122}
+\newcommand{\pairSalienceUp}{464}
+\newcommand{\pairSalienceP}{<10^{-48}}
+\newcommand{\pairAbsentDown}{287}
+\newcommand{\pairAbsentUp}{383}
+\newcommand{\pairAbsentP}{=2.4e-04}
+\newcommand{\pairRecencyDown}{104}
+\newcommand{\pairRecencyUp}{250}
 \newcommand{\pairRecencyP}{<10^{-15}}
-\newcommand{\pairAbsentOracleDown}{291}
-\newcommand{\pairAbsentOracleUp}{51}
-\newcommand{\pairAbsentOracleP}{<10^{-42}}
-\newcommand{\pairCorrectOracleDown}{107}
-\newcommand{\pairCorrectOracleUp}{227}
+\newcommand{\pairAbsentOracleDown}{261}
+\newcommand{\pairAbsentOracleUp}{39}
+\newcommand{\pairAbsentOracleP}{<10^{-41}}
+\newcommand{\pairCorrectOracleDown}{92}
+\newcommand{\pairCorrectOracleUp}{205}
 \newcommand{\pairCorrectOracleP}{<10^{-11}}
 \newcommand{\signLThreebelowLOneall}{13/13}
-\newcommand{\signLThreebelowLOne}{10/10}
-\newcommand{\signDecoyUp}{10/10}
-\newcommand{\signDenialUp}{6/10}
-\newcommand{\signAudioDep}{13/13}
-\newcommand{\signP}{=0.002}
+\newcommand{\signLThreebelowLOne}{9/9}
+\newcommand{\signDecoyUp}{9/9}
+\newcommand{\signDenialUp}{5/9}
+\newcommand{\signAudioDep}{7/7}
+\newcommand{\signP}{=0.004}
 \newcommand{\signPall}{=2.4e-04}
 \newcommand{\meanRetrievalCost}{0.18}
 \newcommand{\minRetrievalCost}{0.10}
 \newcommand{\maxRetrievalCost}{0.24}
 \newcommand{\oracleGain}{0.04}
 \newcommand{\oracleDenialDrop}{0.07}
-\newcommand{\NbandModels}{10}
-\newcommand{\lenCorrect}{(20\,s,0.508) (120\,s,0.380) (300\,s,0.325) (600\,s,0.256)}
-\newcommand{\lenSalience}{(20\,s,0.137) (120\,s,0.223) (300\,s,0.241) (600\,s,0.259)}
-\newcommand{\lenRecency}{(20\,s,0.102) (120\,s,0.135) (300\,s,0.148) (600\,s,0.150)}
-\newcommand{\lenAbsent}{(20\,s,0.253) (120\,s,0.261) (300\,s,0.286) (600\,s,0.335)}
-\newcommand{\lenBody}{20\,s & within item & 356 & 10 & 0.51 & 0.14 & 0.10 & 0.25 \\
-120\,s & within item & 355 & 10 & 0.38 & 0.22 & 0.14 & 0.26 \\
-300\,s & within item & 353 & 10 & 0.33 & 0.24 & 0.15 & 0.29 \\
-600\,s & separate band & 74 & 10 & 0.26 & 0.26 & 0.15 & 0.34 \\}
-\newcommand{\bandCorrIso}{0.51}
+\newcommand{\NbandModels}{9}
+\newcommand{\lenCorrect}{(20\,s,0.516) (120\,s,0.392) (300\,s,0.332) (600\,s,0.261)}
+\newcommand{\lenSalience}{(20\,s,0.129) (120\,s,0.215) (300\,s,0.238) (600\,s,0.268)}
+\newcommand{\lenRecency}{(20\,s,0.092) (120\,s,0.125) (300\,s,0.138) (600\,s,0.131)}
+\newcommand{\lenAbsent}{(20\,s,0.262) (120\,s,0.268) (300\,s,0.292) (600\,s,0.340)}
+\newcommand{\lenBody}{20\,s & within item & 356 & 9 & 0.52 & 0.13 & 0.09 & 0.26 \\
+120\,s & within item & 355 & 9 & 0.39 & 0.22 & 0.12 & 0.27 \\
+300\,s & within item & 353 & 9 & 0.33 & 0.24 & 0.14 & 0.29 \\
+600\,s & separate band & 74 & 9 & 0.26 & 0.27 & 0.13 & 0.34 \\}
+\newcommand{\bandCorrIso}{0.52}
 \newcommand{\bandCorrFull}{0.26}
-\newcommand{\bandDecoy}{0.26}
+\newcommand{\bandDecoy}{0.27}
 \newcommand{\bandDenial}{0.34}
-\newcommand{\lenSalFirst}{0.14}
-\newcommand{\lenSalLast}{0.26}
-\newcommand{\lenCorrFirst}{0.51}
+\newcommand{\lenSalFirst}{0.13}
+\newcommand{\lenSalLast}{0.27}
+\newcommand{\lenCorrFirst}{0.52}
 \newcommand{\lenCorrLast}{0.26}
-\newcommand{\sweepCorrect}{(0,0.425) (-3,0.420) (-6,0.418) (-9,0.412) (-12,0.405) (-18,0.391) (-24,0.359)}
-\newcommand{\sweepSalience}{(0,0.207) (-3,0.207) (-6,0.208) (-9,0.211) (-12,0.215) (-18,0.223) (-24,0.232)}
-\newcommand{\sweepAbsent}{(0,0.242) (-3,0.246) (-6,0.249) (-9,0.253) (-12,0.259) (-18,0.265) (-24,0.285)}
-\newcommand{\sweepRecency}{(0,0.125) (-3,0.127) (-6,0.125) (-9,0.124) (-12,0.122) (-18,0.121) (-24,0.124)}
-\newcommand{\sweepCorrz}{0.43}
-\newcommand{\sweepSalz}{0.21}
-\newcommand{\sweepAbsz}{0.24}
-\newcommand{\sweepRecz}{0.13}
-\newcommand{\sweepCorrmThree}{0.42}
-\newcommand{\sweepSalmThree}{0.21}
-\newcommand{\sweepAbsmThree}{0.25}
-\newcommand{\sweepRecmThree}{0.13}
-\newcommand{\sweepCorrmSix}{0.42}
-\newcommand{\sweepSalmSix}{0.21}
-\newcommand{\sweepAbsmSix}{0.25}
-\newcommand{\sweepRecmSix}{0.12}
-\newcommand{\sweepCorrmNine}{0.41}
-\newcommand{\sweepSalmNine}{0.21}
-\newcommand{\sweepAbsmNine}{0.25}
-\newcommand{\sweepRecmNine}{0.12}
-\newcommand{\sweepCorrmTwelve}{0.41}
-\newcommand{\sweepSalmTwelve}{0.21}
-\newcommand{\sweepAbsmTwelve}{0.26}
-\newcommand{\sweepRecmTwelve}{0.12}
-\newcommand{\sweepCorrmEighteen}{0.39}
-\newcommand{\sweepSalmEighteen}{0.22}
-\newcommand{\sweepAbsmEighteen}{0.26}
-\newcommand{\sweepRecmEighteen}{0.12}
-\newcommand{\sweepCorrmTwentyfour}{0.36}
-\newcommand{\sweepSalmTwentyfour}{0.23}
-\newcommand{\sweepAbsmTwentyfour}{0.29}
-\newcommand{\sweepRecmTwentyfour}{0.12}
-\newcommand{\sweepCorrmSixty}{0.15}
-\newcommand{\sweepSalmSixty}{0.33}
-\newcommand{\sweepAbsmSixty}{0.38}
-\newcommand{\sweepRecmSixty}{0.14}
-\newcommand{\sweepBody}{+0 & 0.43 & 0.21 & 0.13 & 0.24 \\
--3 & 0.42 & 0.21 & 0.13 & 0.25 \\
--6 & 0.42 & 0.21 & 0.12 & 0.25 \\
--9 & 0.41 & 0.21 & 0.12 & 0.25 \\
--12 & 0.41 & 0.21 & 0.12 & 0.26 \\
--18 & 0.39 & 0.22 & 0.12 & 0.26 \\
--24 & 0.36 & 0.23 & 0.12 & 0.29 \\
--60 & 0.15 & 0.33 & 0.14 & 0.38 \\}
-\newcommand{\audioDepMean}{0.19}
-\newcommand{\audioDepMin}{0.06}
+\newcommand{\sweepCorrect}{(0,0.415) (-3,0.408) (-6,0.406) (-9,0.401) (-12,0.393) (-18,0.379) (-24,0.343)}
+\newcommand{\sweepSalience}{(0,0.187) (-3,0.187) (-6,0.186) (-9,0.188) (-12,0.191) (-18,0.200) (-24,0.208)}
+\newcommand{\sweepAbsent}{(0,0.302) (-3,0.306) (-6,0.311) (-9,0.316) (-12,0.324) (-18,0.330) (-24,0.356)}
+\newcommand{\sweepRecency}{(0,0.096) (-3,0.099) (-6,0.097) (-9,0.095) (-12,0.092) (-18,0.092) (-24,0.093)}
+\newcommand{\sweepCorrz}{0.41}
+\newcommand{\sweepSalz}{0.19}
+\newcommand{\sweepAbsz}{0.30}
+\newcommand{\sweepRecz}{0.10}
+\newcommand{\sweepCorrmThree}{0.41}
+\newcommand{\sweepSalmThree}{0.19}
+\newcommand{\sweepAbsmThree}{0.31}
+\newcommand{\sweepRecmThree}{0.10}
+\newcommand{\sweepCorrmSix}{0.41}
+\newcommand{\sweepSalmSix}{0.19}
+\newcommand{\sweepAbsmSix}{0.31}
+\newcommand{\sweepRecmSix}{0.10}
+\newcommand{\sweepCorrmNine}{0.40}
+\newcommand{\sweepSalmNine}{0.19}
+\newcommand{\sweepAbsmNine}{0.32}
+\newcommand{\sweepRecmNine}{0.09}
+\newcommand{\sweepCorrmTwelve}{0.39}
+\newcommand{\sweepSalmTwelve}{0.19}
+\newcommand{\sweepAbsmTwelve}{0.32}
+\newcommand{\sweepRecmTwelve}{0.09}
+\newcommand{\sweepCorrmEighteen}{0.38}
+\newcommand{\sweepSalmEighteen}{0.20}
+\newcommand{\sweepAbsmEighteen}{0.33}
+\newcommand{\sweepRecmEighteen}{0.09}
+\newcommand{\sweepCorrmTwentyfour}{0.34}
+\newcommand{\sweepSalmTwentyfour}{0.21}
+\newcommand{\sweepAbsmTwentyfour}{0.36}
+\newcommand{\sweepRecmTwentyfour}{0.09}
+\newcommand{\sweepCorrmSixty}{0.12}
+\newcommand{\sweepSalmSixty}{0.31}
+\newcommand{\sweepAbsmSixty}{0.45}
+\newcommand{\sweepRecmSixty}{0.12}
+\newcommand{\sweepBody}{+0 & 0.41 & 0.19 & 0.10 & 0.30 \\
+-3 & 0.41 & 0.19 & 0.10 & 0.31 \\
+-6 & 0.41 & 0.19 & 0.10 & 0.31 \\
+-9 & 0.40 & 0.19 & 0.09 & 0.32 \\
+-12 & 0.39 & 0.19 & 0.09 & 0.32 \\
+-18 & 0.38 & 0.20 & 0.09 & 0.33 \\
+-24 & 0.34 & 0.21 & 0.09 & 0.36 \\
+-60 & 0.12 & 0.31 & 0.12 & 0.45 \\}
+\newcommand{\audioDepMean}{0.23}
+\newcommand{\audioDepMin}{0.13}
 \newcommand{\audioDepMax}{0.29}
-\newcommand{\signSweepFall}{13/13}
-\newcommand{\signSweepDecoyUp}{13/13}
-\newcommand{\signSweepDenialUp}{12/13}
-\newcommand{\sweeprmSalience}{0.33}
-\newcommand{\sweeprmAbsent}{0.38}
-\newcommand{\sweeprmCorrect}{0.15}
-\newcommand{\sweeprmRecency}{0.14}
+\newcommand{\signSweepFall}{7/7}
+\newcommand{\signSweepDecoyUp}{7/7}
+\newcommand{\signSweepDenialUp}{7/7}
+\newcommand{\sweeprmSalience}{0.31}
+\newcommand{\sweeprmAbsent}{0.45}
+\newcommand{\sweeprmCorrect}{0.12}
+\newcommand{\sweeprmRecency}{0.12}
 \newcommand{\boostMean}{+0.004}
-\newcommand{\boostMin}{-0.007}
-\newcommand{\boostMax}{+0.015}
-\newcommand{\signBoost}{9/13}
-\newcommand{\compMean}{+0.027}
-\newcommand{\signComp}{13/13}
-\newcommand{\calMean}{-0.015}
-\newcommand{\signCal}{12/13}
-\newcommand{\boostCurve}{(0,0.425) (3,0.428) (6,0.430) (9,0.429)}
-\newcommand{\boostDecoy}{(0,0.207) (3,0.207) (6,0.205) (9,0.205)}
-\newcommand{\compCurve}{(0,0.426) (-6,0.426) (-12,0.424) (-24,0.430) (-60,0.459)}
-\newcommand{\compDecoy}{(0,0.230) (-6,0.227) (-12,0.229) (-24,0.216) (-60,0.167)}
-\newcommand{\calCurve}{(0,0.425) (-2,0.421) (-4,0.421) (-6,0.418) (-8,0.414) (-10,0.411) (-12,0.405)}
-\newcommand{\compZero}{0.43}
-\newcommand{\compRemoved}{0.46}
-\newcommand{\compDecoyZero}{0.23}
-\newcommand{\compDecoyRemoved}{0.17}
-\newcommand{\boostZero}{0.43}
-\newcommand{\boostNine}{0.43}
-\newcommand{\twoByTwoBody}{Qwen2-Audio-7B & 0.18 & -0.005 & 0.029 & -0.029 \\
+\newcommand{\boostMin}{+0.000}
+\newcommand{\boostMax}{+0.010}
+\newcommand{\signBoost}{5/7}
+\newcommand{\compMean}{+0.031}
+\newcommand{\signComp}{7/7}
+\newcommand{\calMean}{-0.016}
+\newcommand{\signCal}{6/7}
+\newcommand{\boostCurve}{(0,0.415) (3,0.417) (6,0.419) (9,0.420)}
+\newcommand{\boostDecoy}{(0,0.187) (3,0.185) (6,0.184) (9,0.183)}
+\newcommand{\compCurve}{(0,0.413) (-6,0.414) (-12,0.413) (-24,0.415) (-60,0.446)}
+\newcommand{\compDecoy}{(0,0.217) (-6,0.214) (-12,0.214) (-24,0.200) (-60,0.150)}
+\newcommand{\calCurve}{(0,0.415) (-2,0.409) (-4,0.410) (-6,0.406) (-8,0.401) (-10,0.400) (-12,0.393)}
+\newcommand{\compZero}{0.41}
+\newcommand{\compRemoved}{0.45}
+\newcommand{\compDecoyZero}{0.22}
+\newcommand{\compDecoyRemoved}{0.15}
+\newcommand{\boostZero}{0.41}
+\newcommand{\boostNine}{0.42}
+\newcommand{\twoByTwoBody}{\ctr{Qwen2-Audio-7B} & 0.18 & -0.005 & 0.029 & -0.029 \\
 Qwen2.5-Omni-3B & 0.27 & 0.005 & 0.033 & 0.002 \\
 Qwen2.5-Omni-7B & 0.29 & 0.007 & 0.023 & -0.007 \\
 Phi-4-multimodal & 0.15 & 0.005 & 0.020 & -0.007 \\
-Gemma-3n-E2B & 0.06 & 0.010 & 0.010 & -0.002 \\
-Gemma-3n-E4B & 0.09 & 0.015 & 0.007 & -0.010 \\
-Aero-1-Audio & 0.09 & 0.005 & 0.016 & -0.015 \\
+\ctr{Gemma-3n-E2B} & 0.06 & 0.010 & 0.010 & -0.002 \\
+\ctr{Gemma-3n-E4B} & 0.09 & 0.015 & 0.007 & -0.010 \\
+\ctr{Aero-1-Audio} & 0.09 & 0.005 & 0.016 & -0.015 \\
 Voxtral-Mini-3B & 0.13 & 0.000 & 0.023 & -0.034 \\
 MOSS-Audio-4B-Instruct & 0.22 & 0.000 & 0.026 & -0.039 \\
-MOSS-Audio-4B-Thinking & 0.26 & -0.007 & 0.026 & -0.005 \\
 MOSS-Audio-8B-Instruct & 0.25 & 0.002 & 0.042 & -0.025 \\
-MOSS-Audio-8B-Thinking & 0.22 & 0.002 & 0.049 & -0.025 \\
 Audio-Flamingo-Next & 0.29 & 0.010 & 0.049 & -0.005 \\}
+\newcommand{\signAudioDepAll}{11/11}
 \newcommand{\NcompItems}{306}
-\newcommand{\catPOneCorr}{0.34}
-\newcommand{\catPOneDec}{0.17}
-\newcommand{\catPOneDen}{0.34}
-\newcommand{\catPOneR}{0.35}
-\newcommand{\catPTwoCorr}{0.33}
+\newcommand{\catPOneCorr}{0.36}
+\newcommand{\catPOneDec}{0.16}
+\newcommand{\catPOneDen}{0.36}
+\newcommand{\catPOneR}{0.33}
+\newcommand{\catPTwoCorr}{0.35}
 \newcommand{\catPTwoDec}{0.25}
 \newcommand{\catPTwoDen}{0.28}
 \newcommand{\catPTwoR}{0.22}
-\newcommand{\catPThreeCorr}{0.32}
+\newcommand{\catPThreeCorr}{0.31}
 \newcommand{\catPThreeDec}{0.26}
-\newcommand{\catPThreeDen}{0.29}
-\newcommand{\catPThreeR}{0.19}
+\newcommand{\catPThreeDen}{0.30}
+\newcommand{\catPThreeR}{0.21}
 \newcommand{\catPFourCorr}{0.27}
 \newcommand{\catPFourDec}{0.28}
-\newcommand{\catPFourDen}{0.25}
-\newcommand{\catPFourR}{0.11}
-\newcommand{\catCOneCorr}{0.37}
-\newcommand{\catCOneDec}{0.19}
+\newcommand{\catPFourDen}{0.26}
+\newcommand{\catPFourR}{0.12}
+\newcommand{\catCOneCorr}{0.39}
+\newcommand{\catCOneDec}{0.18}
 \newcommand{\catCOneDen}{0.31}
-\newcommand{\catCOneR}{0.17}
-\newcommand{\catBody}{P1 & 18 & 0.69 & 0.34 & 0.35 & 0.17 & 0.15 & 0.34 \\
-P2 & 111 & 0.55 & 0.33 & 0.22 & 0.25 & 0.13 & 0.28 \\
-P3 & 45 & 0.51 & 0.32 & 0.19 & 0.26 & 0.13 & 0.29 \\
-P4 & 95 & 0.39 & 0.27 & 0.11 & 0.28 & 0.20 & 0.25 \\
-C1 & 88 & 0.54 & 0.37 & 0.17 & 0.19 & 0.13 & 0.31 \\}
+\newcommand{\catCOneR}{0.16}
+\newcommand{\catBody}{P1 & 18 & 0.70 & 0.36 & 0.33 & 0.16 & 0.12 & 0.36 \\
+P2 & 111 & 0.57 & 0.35 & 0.22 & 0.25 & 0.12 & 0.28 \\
+P3 & 45 & 0.53 & 0.31 & 0.21 & 0.26 & 0.12 & 0.30 \\
+P4 & 95 & 0.39 & 0.27 & 0.12 & 0.28 & 0.19 & 0.26 \\
+C1 & 88 & 0.55 & 0.39 & 0.16 & 0.18 & 0.12 & 0.31 \\}
 \newcommand{\catRmaxName}{P1}
-\newcommand{\catRmaxVal}{0.35}
+\newcommand{\catRmaxVal}{0.33}
 \newcommand{\catRminName}{P4}
-\newcommand{\catRminVal}{0.11}
+\newcommand{\catRminVal}{0.12}
 \newcommand{\catDecMaxName}{P4}
 \newcommand{\catDecMaxVal}{0.28}
 \newcommand{\catDecMinName}{P1}
-\newcommand{\catDecMinVal}{0.17}
-\newcommand{\ScenCorrOne}{0.50}
-\newcommand{\ScenCorrThree}{0.32}
-\newcommand{\ScenDec}{0.23}
-\newcommand{\ScenDen}{0.30}
+\newcommand{\catDecMinVal}{0.16}
+\newcommand{\ScenCorrOne}{0.51}
+\newcommand{\ScenCorrThree}{0.33}
+\newcommand{\ScenDec}{0.22}
+\newcommand{\ScenDen}{0.31}
 \newcommand{\ScenN}{309}
 \newcommand{\NonscenCorrOne}{0.53}
-\newcommand{\NonscenCorrThree}{0.36}
+\newcommand{\NonscenCorrThree}{0.37}
 \newcommand{\NonscenDec}{0.33}
 \newcommand{\NonscenDen}{0.19}
 \newcommand{\NonscenN}{48}
+\newcommand{\corpusBody}{AMI & 327 & 0.52 & 0.33 & 0.19 & 0.23 & 0.14 & 0.30 \\
+ICSI & 30 & 0.51 & 0.36 & 0.15 & 0.34 & 0.14 & 0.16 \\}
+\newcommand{\Ncorpora}{2}
 \newcommand{\nullSentinelLOne}{0.27}
-\newcommand{\nullDecoyLOne}{0.07}
-\newcommand{\nullSentinelLThree}{0.29}
-\newcommand{\nullDecoyLThree}{0.13}
+\newcommand{\nullDecoyLOne}{0.06}
+\newcommand{\nullSentinelLThree}{0.28}
+\newcommand{\nullDecoyLThree}{0.11}
 \newcommand{\nullSentinelLFour}{0.18}
-\newcommand{\nullDecoyLFour}{0.15}
-\newcommand{\calibGapLThree}{0.00}
+\newcommand{\nullDecoyLFour}{0.13}
+\newcommand{\calibGapLThree}{-0.01}
 \newcommand{\qogemmaThreeneTwob}{0.16}
 \newcommand{\qomossaudioFourbinstruct}{0.05}
 \newcommand{\qophiFourmultimodal}{0.02}
@@ -261,11 +265,11 @@ Whisper$\rightarrow$Gemma-2-9B & 0.57 & 0.38 & 0.19 & 0.32 & 0.11 \\}
 \newcommand{\twinDecoyThree}{0.30}
 \newcommand{\twinDenialThree}{0.23}
 \newcommand{\twinDenialOne}{0.26}
-\newcommand{\twinCatBody}{P1 & 0.34 & 0.26 & 0.34 & 0.40 \\
-P2 & 0.33 & 0.29 & 0.28 & 0.25 \\
-P3 & 0.32 & 0.32 & 0.29 & 0.19 \\
-P4 & 0.27 & 0.27 & 0.25 & 0.20 \\
-C1 & 0.37 & 0.35 & 0.31 & 0.24 \\}
+\newcommand{\twinCatBody}{P1 & 0.36 & 0.26 & 0.36 & 0.40 \\
+P2 & 0.35 & 0.29 & 0.28 & 0.25 \\
+P3 & 0.31 & 0.32 & 0.30 & 0.19 \\
+P4 & 0.27 & 0.27 & 0.26 & 0.20 \\
+C1 & 0.39 & 0.35 & 0.31 & 0.24 \\}
 \newcommand{\twinPairAudioRight}{111}
 \newcommand{\twinPairTextRight}{17}
 \newcommand{\twinPairP}{<10^{-18}}
@@ -324,12 +328,12 @@ GPT-audio-mini & 357 & 0.43 & -- & 0.25 & -- & 0.18 & 0.26 & 0.36 & 51 \\}
 \newcommand{\mossEightbThinkDec}{0.26}
 \newcommand{\mossEightbInstS}{0.24}
 \newcommand{\mossEightbThinkS}{0.53}
-\newcommand{\letterBars}{(A,0.214) (B,0.248) (C,0.282) (D,0.255)}
+\newcommand{\letterBars}{(A,0.216) (B,0.233) (C,0.267) (D,0.284)}
 \newcommand{\letterMax}{0.28}
-\newcommand{\letterMin}{0.21}
-\newcommand{\sentinelByLetter}{(A,0.226) (B,0.269) (C,0.349) (D,0.292)}
+\newcommand{\letterMin}{0.22}
+\newcommand{\sentinelByLetter}{(A,0.221) (B,0.265) (C,0.346) (D,0.325)}
 \newcommand{\sentinelLetterMax}{0.35}
-\newcommand{\sentinelLetterMin}{0.23}
+\newcommand{\sentinelLetterMin}{0.22}
 \newcommand{\truncCorrOne}{0.59}
 \newcommand{\truncCorrThree}{0.19}
 \newcommand{\truncDenThree}{0.45}
@@ -338,15 +342,78 @@ GPT-audio-mini & 357 & 0.43 & -- & 0.25 & -- & 0.18 & 0.26 & 0.36 & 51 \\}
 \newcommand{\truncInsideCorr}{0.39}
 \newcommand{\truncOutsideCorr}{0.18}
 \newcommand{\truncOutsideDen}{0.48}
-\newcommand{\scorerAgree}{0.92}
-\newcommand{\scorerAgreeN}{3,538}
+\newcommand{\scorerAgree}{0.91}
+\newcommand{\scorerAgreeN}{3,181}
 \newcommand{\subDeltaFull}{-0.18}
 \newcommand{\subDeltaLo}{-0.21}
 \newcommand{\subDeltaHi}{-0.16}
 \newcommand{\subSalFull}{0.24}
-\newcommand{\subSalLo}{0.22}
+\newcommand{\subSalLo}{0.21}
 \newcommand{\subSalHi}{0.27}
-\newcommand{\subSignMin}{10}
+\newcommand{\subSignMin}{9}
 \newcommand{\subN}{204}
 \newcommand{\ciRetrievalCost}{0.02}
+\newcommand{\poolDropOneTwo}{0.12}
+\newcommand{\poolDropTwoThree}{0.06}
+\newcommand{\signStepOneTwo}{8/9}
+\newcommand{\absPolicyStable}{7/9}
+\newcommand{\absRangeLo}{0.07}
+\newcommand{\absRangeHi}{0.59}
+\newcommand{\absHeaviest}{Voxtral-Mini-3B}
+\newcommand{\absLightest}{MOSS-Audio-4B-Thinking}
+\newcommand{\openMaxOracleGain}{+0.10}
+\newcommand{\openMaxOracleName}{Voxtral-Mini-3B}
+\newcommand{\signOracleAbsDown}{8/9}
+\newcommand{\closedgeminiflashOracleGain}{+0.10}
+\newcommand{\closedgeminiflashDenFour}{0.08}
+\newcommand{\closedgeminiliteOracleGain}{+0.21}
+\newcommand{\closedgeminiliteDenFour}{0.08}
+\newcommand{\closedgptaudiominiOracleGain}{--}
+\newcommand{\closedgptaudiominiDenFour}{--}
+\newcommand{\bandSwitchBody}{Omni-3B & 0.59 & 0.36 & 0.31 & 0.23 & 0.51 & 0.16 & 0.60 & 0.15 \\
+Omni-7B & 0.62 & 0.44 & 0.16 & 0.25 & 0.49 & 0.21 & 0.48 & 0.19 \\
+Phi-4-mm & 0.35 & 0.18 & 0.45 & 0.23 & 0.39 & 0.23 & 0.12 & 0.40 \\
+Voxtral-3B & 0.23 & 0.13 & 0.61 & 0.16 & 0.20 & 0.09 & 0.65 & 0.20 \\
+MOSS-4B-Instruct & 0.42 & 0.24 & 0.38 & 0.24 & 0.51 & 0.15 & 0.44 & 0.28 \\
+MOSS-4B-Thinking & 0.66 & 0.45 & 0.08 & 0.30 & 0.76 & 0.44 & 0.07 & 0.34 \\
+MOSS-8B-Instruct & 0.48 & 0.24 & 0.46 & 0.18 & 0.53 & 0.17 & 0.55 & 0.21 \\
+MOSS-8B-Thinking & 0.68 & 0.51 & 0.10 & 0.26 & 0.68 & 0.47 & 0.08 & 0.32 \\
+AF-Next & 0.63 & 0.46 & 0.08 & 0.29 & 0.61 & 0.44 & 0.05 & 0.33 \\}
+\newcommand{\NbandSwitch}{2}
+\newcommand{\bandSwitchNames}{Omni-3B, Omni-7B}
+\newcommand{\posAccFirst}{0.29}
+\newcommand{\posSalFirst}{}
+\newcommand{\posAccMiddle}{0.33}
+\newcommand{\posSalMiddle}{}
+\newcommand{\posAccLast}{0.38}
+\newcommand{\posSalLast}{}
+\newcommand{\kappaMean}{0.29}
+\newcommand{\kappaMin}{0.09}
+\newcommand{\kappaMax}{0.61}
+\newcommand{\itemsNoneLThree}{73}
+\newcommand{\itemsAllLThree}{5}
+\newcommand{\itemsCommon}{327}
+\newcommand{\packSig}{0/9}
+\newcommand{\iccLo}{-0.12}
+\newcommand{\iccHi}{0.13}
+\newcommand{\nullLureLOne}{0.63}
+\newcommand{\nullLureLThree}{0.54}
+\newcommand{\nullSpearman}{0.91}
+\newcommand{\nullSpearmanN}{19}
+\newcommand{\nullBestOpen}{0.75}
+\newcommand{\nullBestOpenName}{Voxtral-Mini-3B}
+\newcommand{\refusPTwo}{24}
+\newcommand{\refusPFour}{16}
+\newcommand{\unparsedThinkFourb}{6/9/24/26}
+\newcommand{\unparsedThinkEightb}{3/3/11/6}
+\newcommand{\signTwinDecoyUp}{4/4}
+\newcommand{\signTwinDrop}{4/4}
+\newcommand{\sizePairBody}{Omni 3B $\rightarrow$ 7B & 0.59 / 0.62 & 0.36 / 0.44 & 0.35 / 0.44 \\
+MOSS-Inst 4B $\rightarrow$ 8B & 0.42 / 0.48 & 0.24 / 0.24 & 0.32 / 0.24 \\
+MOSS-Think 4B $\rightarrow$ 8B & 0.66 / 0.68 & 0.45 / 0.51 & 0.55 / 0.53 \\}
+\newcommand{\achievedTwentyfour}{19.6}
+\newcommand{\achievedSixty}{25.1}
+\newcommand{\cliffDrop}{0.22}
+\newcommand{\sweepDecoyRise}{0.12}
+\newcommand{\sweepDenialRise}{0.15}
 \newcommand{\Ncells}{181,745}

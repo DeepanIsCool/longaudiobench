@@ -37,8 +37,17 @@ MODELS = [
     ("moss_audio_8b_thinking", "MOSS-Audio-8B-Thinking", "OpenMOSS", 8.0, 1800, "gen"),
     ("audio_flamingo_next", "Audio-Flamingo-Next", "NVIDIA", None, 1800, "logits"),
 ]
-FULLCOV = [m[0] for m in MODELS if m[4] >= 300]
+# Pooled numbers use the models whose long-window rows are interpretable:
+# a documented ceiling >= the window, and no artefact that voids the rows.
+# aero_1_audio never chooses one letter and its latency does not grow with
+# audio length (see the artefacts section); it is reported, not pooled.
+ARTEFACT = ["aero_1_audio"]
+FULLCOV = [m[0] for m in MODELS if m[4] >= 300 and m[0] not in ARTEFACT]
 TRUNC = [m[0] for m in MODELS if m[4] < 300]
+THINK = [m[0] for m in MODELS if m[5] == "gen"]
+# The sweep scores every model by letter logits; for the thinking models the
+# first-token logits are not their answer, so their sweep rows are excluded.
+SWEEPPOOL = [m for m in FULLCOV if m not in THINK]
 TWINS = [("cascaded_whisper_llm", "Whisper$\\rightarrow$Qwen2.5-7B"),
          ("cascaded_whisper_llama31_8b", "Whisper$\\rightarrow$Llama-3.1-8B"),
          ("cascaded_whisper_mistral_7b", "Whisper$\\rightarrow$Mistral-7B"),
@@ -48,6 +57,15 @@ CLOSED = [("gemini_3_5_flash", "Gemini 3.5 Flash"), ("gemini_3_1_flash_lite", "G
 QO_MODELS = ["gemma3n_e2b", "moss_audio_4b_instruct", "phi4_multimodal", "qwen2_5_omni_7b", "gpt_audio_mini"]
 CATS = ["P1", "P2", "P3", "P4", "C1"]
 ROLES = ["correct", "salience", "recency", "absent"]
+AMI_RE = re.compile(r"^[EIT][SNB]\d{4}[a-d]")
+CORPORA = {"AMI": lambda rid: bool(AMI_RE.match(rid)), "ICSI": lambda rid: True}   # first match wins
+
+
+def corpus_of(recording_id):
+    for name, test in CORPORA.items():
+        if test(recording_id):
+            return name
+    return "other"
 
 M = {}
 
@@ -141,6 +159,8 @@ macro("NitemsBand", str(len(band_items)))
 macro("Nmodels", str(len(MODELS)))
 macro("Nfullcov", str(len(FULLCOV)))
 macro("Ntrunc", str(len(TRUNC)))
+macro("Nsweeppool", str(len(SWEEPPOOL)))
+macro("Nexcluded", str(len(TRUNC) + len(ARTEFACT)))
 macro("Nfamilies", str(len({m[2] for m in MODELS})))
 macro("Ntwins", str(len(TWINS)))
 
@@ -162,10 +182,12 @@ for key, name, fam, params, ceil, scorer in MODELS:
     audio_dep = acc(lv(S[key], 0)) - acc(lv(S[key], -60))
     per[key] = dict(a=a, dec=dec, den=den, S=Sshare, dep=audio_dep, params=params, ceil=ceil,
                     dec1=share(cond(l, "L1"), "salience"), den1=share(cond(l, "L1"), "absent"))
-    covnote = "\\ctr{30\\,s}" if ceil < 300 else ("600\\,s" if ceil == 600 else "$\\geq$\\,600\\,s")
-    lines.append(f"{name} & {fam} & {fmt(params,1) if params else '--'} & {covnote} & {'gen' if scorer=='gen' else 'logit'} & "
+    covnote = "\\ctr{30\\,s}" if ceil < 300 else ("\\ctr{see \\S\\ref{ssec:artefacts}}" if key in ARTEFACT else ("600\\,s" if ceil == 600 else "$\\geq$\\,600\\,s"))
+    dep_txt = "n/a" if key in THINK else fmt(audio_dep, 2)
+    nm = f"\\ctr{{{name}}}" if (key in TRUNC or key in ARTEFACT) else name
+    lines.append(f"{nm} & {fam} & {fmt(params,1) if params else '--'} & {covnote} & {'gen' if scorer=='gen' else 'logit'} & "
                  f"{fmt(a['L1'])} & {fmt(a['L2'])} & {fmt(a['L3'])} & {fmt(a['L4'])} & "
-                 f"{fmt(a['L1']-a['L3'])} & {fmt(dec)} & {fmt(den)} & {fmt(Sshare)} & {fmt(audio_dep, 2)} \\\\")
+                 f"{fmt(a['L1']-a['L3'])} & {fmt(dec)} & {fmt(den)} & {fmt(Sshare)} & {dep_txt} \\\\")
 macro("ladderBody", "\n".join(lines))
 
 # pooled over full-coverage models, non-null items
@@ -212,7 +234,7 @@ macro("signL3belowL1all", f"{count([m[0] for m in MODELS], lambda m: per[m]['a']
 macro("signL3belowL1", f"{count(FULLCOV, lambda m: per[m]['a']['L3'] < per[m]['a']['L1'])}/{len(FULLCOV)}")
 macro("signDecoyUp", f"{count(FULLCOV, lambda m: per[m]['dec'] > per[m]['dec1'])}/{len(FULLCOV)}")
 macro("signDenialUp", f"{count(FULLCOV, lambda m: per[m]['den'] > per[m]['den1'])}/{len(FULLCOV)}")
-macro("signAudioDep", f"{count([m[0] for m in MODELS], lambda m: per[m]['dep'] > 0)}/{len(MODELS)}")
+macro("signAudioDep", f"{count(SWEEPPOOL, lambda m: per[m]['dep'] > 0)}/{len(SWEEPPOOL)}")
 macro("signP", ptex(sign_p(len(FULLCOV), 0)))
 macro("signPall", ptex(sign_p(len(MODELS), 0)))
 macro("meanRetrievalCost", fmt(st.mean(per[m]["a"]["L1"] - per[m]["a"]["L3"] for m in FULLCOV)))
@@ -246,7 +268,7 @@ macro("lenCorrFirst", fmt(acc(pool["L1"]))); macro("lenCorrLast", fmt(acc(poolb)
 
 # ---------------------------------------------------------------- causal arm (pooled, all 13 and full-coverage)
 levels = [0, -3, -6, -9, -12, -18, -24, -60]
-Spool = [r for m in FULLCOV for r in nonnull(S[m])]
+Spool = [r for m in SWEEPPOOL for r in nonnull(S[m])]
 macro("sweepCorrect", " ".join(f"({l},{acc(lv(Spool,l)):.3f})" for l in levels[:-1]))
 macro("sweepSalience", " ".join(f"({l},{share(lv(Spool,l),'salience'):.3f})" for l in levels[:-1]))
 macro("sweepAbsent", " ".join(f"({l},{share(lv(Spool,l),'absent'):.3f})" for l in levels[:-1]))
@@ -260,26 +282,27 @@ macro("sweepBody", "\n".join(
     f"{l:+d} & {fmt(acc(lv(Spool,l)))} & {fmt(share(lv(Spool,l),'salience'))} & {fmt(share(lv(Spool,l),'recency'))} & {fmt(share(lv(Spool,l),'absent'))} \\\\"
     for l in levels))
 MODELS_ = [m[0] for m in MODELS]
-macro("audioDepMean", fmt(st.mean(per[m]["dep"] for m in MODELS_)))
-macro("audioDepMin", fmt(min(per[m]["dep"] for m in MODELS_))); macro("audioDepMax", fmt(max(per[m]["dep"] for m in MODELS_)))
+SW_ = [m for m in MODELS_ if m not in THINK]      # every logit-scored model, ceilings included
+macro("audioDepMean", fmt(st.mean(per[m]["dep"] for m in SWEEPPOOL)))
+macro("audioDepMin", fmt(min(per[m]["dep"] for m in SWEEPPOOL))); macro("audioDepMax", fmt(max(per[m]["dep"] for m in SWEEPPOOL)))
 # per-model sweep: monotone? accuracy falls, decoy rises (model-level)
 def mono_fall(m):
     return acc(lv(S[m], 0)) > acc(lv(S[m], -60))
-macro("signSweepFall", f"{count(MODELS_, mono_fall)}/{len(MODELS_)}")
-macro("signSweepDecoyUp", f"{count(MODELS_, lambda m: share(lv(S[m],-60),'salience') > share(lv(S[m],0),'salience'))}/{len(MODELS_)}")
-macro("signSweepDenialUp", f"{count(MODELS_, lambda m: share(lv(S[m],-60),'absent') > share(lv(S[m],0),'absent'))}/{len(MODELS_)}")
+macro("signSweepFall", f"{count(SWEEPPOOL, mono_fall)}/{len(SWEEPPOOL)}")
+macro("signSweepDecoyUp", f"{count(SWEEPPOOL, lambda m: share(lv(S[m],-60),'salience') > share(lv(S[m],0),'salience'))}/{len(SWEEPPOOL)}")
+macro("signSweepDenialUp", f"{count(SWEEPPOOL, lambda m: share(lv(S[m],-60),'absent') > share(lv(S[m],0),'absent'))}/{len(SWEEPPOOL)}")
 # removed level: what do models pick when the answer is gone (non-null items: answer removed -> sentinel now "correct" in spirit)
 rm = lv(Spool, -60)
 macro("sweeprmSalience", fmt(share(rm, "salience"))); macro("sweeprmAbsent", fmt(share(rm, "absent"))); macro("sweeprmCorrect", fmt(share(rm, "correct"))); macro("sweeprmRecency", fmt(share(rm, "recency")))
 # boost / competitor / calibrated
 def eff(D, m, hi, lo=0):
     return acc(lv(D[m], hi)) - acc(lv(D[m], lo))
-boost = [eff(B, m, 9) for m in MODELS_]; comp = [eff(C, m, -60) for m in MODELS_]; cal = [eff(K, m, -12) for m in MODELS_]
+boost = [eff(B, m, 9) for m in SWEEPPOOL]; comp = [eff(C, m, -60) for m in SWEEPPOOL]; cal = [eff(K, m, -12) for m in SWEEPPOOL]
 macro("boostMean", f"{st.mean(boost):+.3f}"); macro("boostMin", f"{min(boost):+.3f}"); macro("boostMax", f"{max(boost):+.3f}")
 macro("signBoost", f"{sum(1 for v in boost if v > 0)}/{len(boost)}")
 macro("compMean", f"{st.mean(comp):+.3f}"); macro("signComp", f"{sum(1 for v in comp if v > 0)}/{len(comp)}")
 macro("calMean", f"{st.mean(cal):+.3f}"); macro("signCal", f"{sum(1 for v in cal if v < 0)}/{len(cal)}")
-Bpool = [r for m in FULLCOV for r in nonnull(B[m])]; Cpool = [r for m in FULLCOV for r in nonnull(C[m])]; Kpool = [r for m in FULLCOV for r in nonnull(K[m])]
+Bpool = [r for m in SWEEPPOOL for r in nonnull(B[m])]; Cpool = [r for m in SWEEPPOOL for r in nonnull(C[m])]; Kpool = [r for m in SWEEPPOOL for r in nonnull(K[m])]
 macro("boostCurve", " ".join(f"({l},{acc(lv(Bpool,l)):.3f})" for l in (0, 3, 6, 9)))
 macro("boostDecoy", " ".join(f"({l},{share(lv(Bpool,l),'salience'):.3f})" for l in (0, 3, 6, 9)))
 macro("compCurve", " ".join(f"({l},{acc(lv(Cpool,l)):.3f})" for l in (0, -6, -12, -24, -60)))
@@ -289,8 +312,11 @@ macro("compZero", fmt(acc(lv(Cpool, 0)))); macro("compRemoved", fmt(acc(lv(Cpool
 macro("compDecoyZero", fmt(share(lv(Cpool, 0), "salience"))); macro("compDecoyRemoved", fmt(share(lv(Cpool, -60), "salience")))
 macro("boostZero", fmt(acc(lv(Bpool, 0)))); macro("boostNine", fmt(acc(lv(Bpool, 9))))
 macro("twoByTwoBody", "\n".join(
-    f"{name} & {fmt(per[key]['dep'],2)} & {fmt(eff(B,key,9),3)} & {fmt(eff(C,key,-60),3)} & {fmt(eff(K,key,-12),3)} \\\\"
-    for key, name, *_ in MODELS))
+    (f"\\ctr{{{name}}} & " if (key in TRUNC or key in ARTEFACT) else f"{name} & ") +
+    f"{fmt(per[key]['dep'],2)} & {fmt(eff(B,key,9),3)} & {fmt(eff(C,key,-60),3)} & {fmt(eff(K,key,-12),3)} \\\\"
+    for key, name, *_ in MODELS if key not in THINK))
+# signs over every logit-scored model, ceilings included (their sweep window is short enough to hear)
+macro("signAudioDepAll", f"{count(SW_, lambda m: per[m]['dep'] > 0)}/{len(SW_)}")
 # competitor cells per model (items with competitor in window)
 ncomp = len({r["item_id"] for r in C[FULLCOV[0]]}); macro("NcompItems", str(ncomp))
 
@@ -316,6 +342,18 @@ for t in ("scenario", "non-scenario"):
     k = "Scen" if t == "scenario" else "Nonscen"
     macro(f"{k}Corr1", fmt(acc(s1))); macro(f"{k}Corr3", fmt(acc(s3))); macro(f"{k}Dec", fmt(share(s3, "salience"))); macro(f"{k}Den", fmt(share(s3, "absent")))
     macro(f"{k}N", str(len({r['item_id'] for r in s3})))
+
+# ---------------------------------------------------------------- by corpus (one row per corpus present in the rows)
+present = []
+for cname in CORPORA:
+    s1 = [r for r in pool["L1"] if corpus_of(r["recording_id"]) == cname]
+    s3 = [r for r in pool["L3"] if corpus_of(r["recording_id"]) == cname]
+    if not s3:
+        continue
+    present.append(f"{cname} & {len({r['item_id'] for r in s3})} & {fmt(acc(s1))} & {fmt(acc(s3))} & {fmt(acc(s1)-acc(s3))} & "
+                   f"{fmt(share(s3,'salience'))} & {fmt(share(s3,'recency'))} & {fmt(share(s3,'absent'))} \\\\")
+macro("corpusBody", "\n".join(present))
+macro("Ncorpora", str(len(present)))
 
 # ---------------------------------------------------------------- null items and calibration
 nullpool = {c: [r for m in FULLCOV for r in cond(null(L[m]), c)] for c in ("L1", "L3", "L4")}
@@ -455,6 +493,158 @@ for _ in range(300):
     keep = [i for w_ in rng.choices(ws, k=len(ws)) for i in W[w_]]
     boot.append(agg(keep)[0])
 macro("ciRetrievalCost", fmt(1.96 * st.pstdev(boot)))
+
+
+# ================================================================ additions from the independent audit
+def spearman(x, y):
+    def rank(v):
+        o = sorted(range(len(v)), key=lambda i: v[i]); r = [0.0] * len(v)
+        i = 0
+        while i < len(o):
+            j = i
+            while j + 1 < len(o) and v[o[j + 1]] == v[o[i]]: j += 1
+            for k in range(i, j + 1): r[o[k]] = (i + j) / 2 + 1
+            i = j + 1
+        return r
+    return corr(rank(x), rank(y))
+
+# --- search-load steps: L1->L2 vs L2->L3, per model (pool)
+d12 = {m: per[m]["a"]["L1"] - per[m]["a"]["L2"] for m in FULLCOV}
+d23 = {m: per[m]["a"]["L2"] - per[m]["a"]["L3"] for m in FULLCOV}
+macro("poolDropOneTwo", fmt(acc(pool["L1"]) - acc(pool["L2"]))); macro("poolDropTwoThree", fmt(acc(pool["L2"]) - acc(pool["L3"])))
+macro("signStepOneTwo", f"{sum(1 for m in FULLCOV if d12[m] > d23[m])}/{len(FULLCOV)}")
+
+# --- abstention as a per-model policy: stability L1 vs L3, range across models
+absL1 = {m: per[m]["den1"] for m in FULLCOV}; absL3 = {m: per[m]["den"] for m in FULLCOV}
+macro("absPolicyStable", f"{sum(1 for m in FULLCOV if abs(absL3[m] - absL1[m]) <= 0.06)}/{len(FULLCOV)}")
+macro("absRangeLo", fmt(min(absL1.values()))); macro("absRangeHi", fmt(max(absL1.values())))
+macro("absHeaviest", dict((k, n) for k, n, *_ in MODELS)[max(absL1, key=absL1.get)])
+macro("absLightest", dict((k, n) for k, n, *_ in MODELS)[min(absL1, key=absL1.get)])
+
+# --- oracle gains per model, closed vs open
+names = dict((k, n) for k, n, *_ in MODELS)
+og = {m: per[m]["a"]["L4"] - per[m]["a"]["L3"] for m in FULLCOV}
+bm = max(og, key=og.get)
+macro("openMaxOracleGain", f"{og[bm]:+.2f}"); macro("openMaxOracleName", names[bm])
+macro("signOracleAbsDown", f"{sum(1 for m in FULLCOV if share(cond(nonnull(L[m]),'L4'),'absent') < absL3[m])}/{len(FULLCOV)}")
+for k, nm in CLOSED:
+    r_ = nonnull(valid(rows("ladder", k)))
+    a3, a4 = acc(cond(r_, "L3")), acc(cond(r_, "L4"))
+    tag = {"gemini_3_5_flash": "geminiflash", "gemini_3_1_flash_lite": "geminilite", "gpt_audio_mini": "gptaudiomini"}[k]
+    macro(f"closed{tag}OracleGain", "--" if math.isnan(a4) else f"{a4 - a3:+.2f}")
+    macro(f"closed{tag}Den4", fmt(share(cond(r_, "L4"), "absent")))
+
+# --- 600 s band: who switches to abstention
+switch = []
+for m in FULLCOV:
+    if not Lb.get(m):
+        continue
+    l3m = cond(nonnull(L[m]), "L3"); l3b = cond(nonnull(Lb[m]), "L3"); l1b = cond(nonnull(Lb[m]), "L1")
+    switch.append((names[m].replace("MOSS-Audio-", "MOSS-").replace("Qwen2.5-", "").replace("-multimodal", "-mm").replace("Audio-Flamingo-Next", "AF-Next").replace("Voxtral-Mini-3B", "Voxtral-3B"), acc(cond(nonnull(L[m]), "L1")), acc(l3m), share(l3m, "absent"), share(l3m, "salience"), acc(l1b), acc(l3b), share(l3b, "absent"), share(l3b, "salience")))
+macro("bandSwitchBody", "\n".join(f"{n} & {fmt(a1)} & {fmt(a3)} & {fmt(ab)} & {fmt(sa)} & {fmt(b1)} & {fmt(b3)} & {fmt(bb)} & {fmt(bs)} \\\\" for n, a1, a3, ab, sa, b1, b3, bb, bs in switch))
+macro("NbandSwitch", str(sum(1 for r in switch if r[7] >= 0.45 and r[7] - r[3] >= 0.15)))
+macro("bandSwitchNames", ", ".join(r[0] for r in switch if r[7] >= 0.45 and r[7] - r[3] >= 0.15))
+
+# --- position of the answer inside the window (L3, pool): tertiles
+pos = [(item_by[r["item_id"]]["needle_start"] - r["window_start"], r["correct"]) for r in pool["L3"]]
+pos.sort(); n3 = len(pos) // 3
+for i, tag in enumerate(("First", "Middle", "Last")):
+    seg = pos[i * n3:(i + 1) * n3] if i < 2 else pos[2 * n3:]
+    macro(f"posAcc{tag}", fmt(sum(c for _, c in seg) / len(seg)))
+    macro(f"posSal{tag}", "")  # placeholder, not used
+# --- agreement between models at L3 (pool): mean pairwise kappa; items solved by none / all
+def kappa(a, b):
+    n = len(a); po = sum(x == y for x, y in zip(a, b)) / n
+    pa = sum(a) / n; pb = sum(b) / n; pe = pa * pb + (1 - pa) * (1 - pb)
+    return (po - pe) / (1 - pe) if pe < 1 else float("nan")
+corr_by = {m: {r["item_id"]: r["correct"] for r in cond(nonnull(L[m]), "L3")} for m in FULLCOV}
+common = sorted(set.intersection(*[set(v) for v in corr_by.values()]))
+ks = []
+for i, m1 in enumerate(FULLCOV):
+    for m2 in FULLCOV[i + 1:]:
+        ks.append(kappa([corr_by[m1][it] for it in common], [corr_by[m2][it] for it in common]))
+macro("kappaMean", fmt(st.mean(ks))); macro("kappaMin", fmt(min(ks))); macro("kappaMax", fmt(max(ks)))
+macro("itemsNoneLThree", str(sum(1 for it in common if not any(corr_by[m][it] for m in FULLCOV))))
+macro("itemsAllLThree", str(sum(1 for it in common if all(corr_by[m][it] for m in FULLCOV))))
+macro("itemsCommon", str(len(common)))
+
+# --- packs: does any pooled model differ between packs at L3? two-proportion z
+from statistics import NormalDist
+sig = 0
+for m in FULLCOV:
+    l3 = cond(nonnull(L[m]), "L3")
+    a = [r["correct"] for r in l3 if r["pack_fingerprint"] == "56bd324cf6a3"]; b = [r["correct"] for r in l3 if r["pack_fingerprint"] != "56bd324cf6a3"]
+    if not a or not b: continue
+    pa, pb = sum(a) / len(a), sum(b) / len(b); pp = (sum(a) + sum(b)) / (len(a) + len(b))
+    se = math.sqrt(pp * (1 - pp) * (1 / len(a) + 1 / len(b))); z = (pa - pb) / se if se else 0
+    sig += 2 * (1 - NormalDist().cdf(abs(z))) < 0.05
+macro("packSig", f"{sig}/{len(FULLCOV)}")
+
+# --- within-window clustering: ICC(1) of L3 correctness, per pooled model
+def icc1(groups):
+    groups = [g for g in groups if len(g) > 1]
+    k = len(groups); N = sum(len(g) for g in groups)
+    if k < 2: return float("nan")
+    gm = sum(sum(g) for g in groups) / N
+    msb = sum(len(g) * (st.mean(g) - gm) ** 2 for g in groups) / (k - 1)
+    msw = sum(sum((x - st.mean(g)) ** 2 for x in g) for g in groups) / (N - k)
+    n0 = (N - sum(len(g) ** 2 for g in groups) / N) / (k - 1)
+    return (msb - msw) / (msb + (n0 - 1) * msw) if (msb + (n0 - 1) * msw) else float("nan")
+iccs = []
+for m in FULLCOV:
+    g = collections.defaultdict(list)
+    for r in cond(nonnull(L[m]), "L3"): g[r["recording_id"]].append(1.0 * r["correct"])
+    iccs.append(icc1(list(g.values())))
+macro("iccLo", fmt(min(iccs))); macro("iccHi", fmt(max(iccs)))
+
+# --- null items: the lure and the abstention policy
+for c in ("L1", "L3"):
+    macro(f"nullLure{c}", fmt(share(nullpool[c], "correct")))
+xs_, ys_ = [], []
+allmodels = [m[0] for m in MODELS] + [k for k, _ in TWINS] + [k for k, _ in CLOSED if k != "gpt_audio_mini"]
+for m in allmodels:
+    rr = valid(rows("ladder", m))
+    n3 = cond(null(rr), "L3"); nn3 = cond(nonnull(rr), "L3")
+    if n3 and nn3:
+        xs_.append(share(n3, "absent")); ys_.append(share(nn3, "absent"))
+macro("nullSpearman", fmt(spearman(xs_, ys_))); macro("nullSpearmanN", str(len(xs_)))
+nullacc_best = max((share(cond(null(valid(rows("ladder", m))), "L3"), "absent"), names.get(m, m)) for m in FULLCOV)
+macro("nullBestOpen", fmt(nullacc_best[0])); macro("nullBestOpenName", nullacc_best[1])
+
+# --- gpt refusals by category
+gpt_all = [r for r in rows("ladder", "gpt_audio_mini") if not r.get("is_null")]
+ref = collections.Counter(r["category"] for r in cond(gpt_all, "L3") if r.get("error") is None and not r.get("role_chosen"))
+macro("refusPTwo", str(ref["P2"])); macro("refusPFour", str(ref["P4"]))
+
+# --- thinking runaway generations (unparsed) by condition
+for sz, tag in (("4b", "Fourb"), ("8b", "Eightb")):
+    rr = rows("ladder", f"moss_audio_{sz}_thinking")
+    un = {c: sum(1 for r in rr if r["condition"] == c and r.get("error") is None and not r.get("role_chosen")) for c in ("L1", "L2", "L3", "L4")}
+    macro(f"unparsedThink{tag}", "/".join(str(un[c]) for c in ("L1", "L2", "L3", "L4")))
+
+# --- twins: salience shift for each
+tw_up = sum(1 for k, _ in TWINS if share(cond(nonnull(tw[k]), "L3"), "salience") > share(cond(nonnull(tw[k]), "L1"), "salience"))
+macro("signTwinDecoyUp", f"{tw_up}/{len(TWINS)}")
+tw_drop = sum(1 for k, _ in TWINS if acc(cond(nonnull(tw[k]), "L3")) < acc(cond(nonnull(tw[k]), "L1")))
+macro("signTwinDrop", f"{tw_drop}/{len(TWINS)}")
+
+# --- within-family size pairs at L3
+pairs = [("qwen2_5_omni_3b", "qwen2_5_omni_7b"), ("moss_audio_4b_instruct", "moss_audio_8b_instruct"), ("moss_audio_4b_thinking", "moss_audio_8b_thinking")]
+short = {"qwen2_5_omni_3b": "Omni 3B", "qwen2_5_omni_7b": "7B", "moss_audio_4b_instruct": "MOSS-Inst 4B", "moss_audio_8b_instruct": "8B",
+         "moss_audio_4b_thinking": "MOSS-Think 4B", "moss_audio_8b_thinking": "8B"}
+macro("sizePairBody", "\n".join(f"{short[a]} $\\rightarrow$ {short[b]} & {per[a]['a']['L1']:.2f} / {per[b]['a']['L1']:.2f} & {per[a]['a']['L3']:.2f} / {per[b]['a']['L3']:.2f} & {per[a]['S']:.2f} / {per[b]['S']:.2f} \\\\" for a, b in pairs))
+
+# --- sweep: the cliff between nominal -24 and -60, and the achieved contrast
+ach = collections.defaultdict(list)
+for m in SWEEPPOOL:
+    for r in nonnull(S[m]):
+        if r.get("achieved_contrast_db") is not None: ach[r["level_db"]].append(r["achieved_contrast_db"])
+base = st.median(ach[0]) if ach[0] else 0
+macro("achievedTwentyfour", fmt(st.median(ach[-24]) - base, 1) if ach[-24] else "--")
+macro("achievedSixty", fmt(st.median(ach[-60]) - base, 1) if ach[-60] else "--")
+macro("cliffDrop", fmt(acc(lv(Spool, -24)) - acc(lv(Spool, -60))))
+macro("sweepDecoyRise", fmt(share(lv(Spool, -60), "salience") - share(lv(Spool, 0), "salience")))
+macro("sweepDenialRise", fmt(share(lv(Spool, -60), "absent") - share(lv(Spool, 0), "absent")))
 
 # ---------------------------------------------------------------- compute
 cells = 0
